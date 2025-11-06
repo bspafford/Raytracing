@@ -1,0 +1,131 @@
+#version 430 core
+
+layout (local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
+	
+// images 
+layout(rgba32f, binding = 0) uniform image2D imgOutput;
+
+// variables
+layout(std430, binding = 0) buffer Vertices { vec4 positions[]; };
+layout(std430, binding = 1) buffer Indices { uint indices[]; };
+
+uniform mat4 projection;
+uniform mat4 invProj;
+uniform mat4 model;
+uniform vec3 camPos;
+uniform vec3 camOrientation;
+uniform mat4 view;
+uniform mat4 invView;
+uniform float aspect;
+uniform float fov;
+uniform vec3 lightDir;
+
+bool RayIntersectsTriangle(const vec3 ray_origin,
+	const vec3 ray_vector,
+	vec3 p1,
+	vec3 p2,
+	vec3 p3,
+	out vec3 hitLoc)
+{
+	float epsilon = 1.19209290e-07;
+
+	vec3 edge1 = p2 - p1;
+	vec3 edge2 = p3 - p1;
+	vec3 ray_cross_e2 = cross(ray_vector, edge2);
+	float det = dot(edge1, ray_cross_e2);
+
+	if (det > -epsilon && det < epsilon)
+		return false;    // This ray is parallel to this triangle.
+
+	float inv_det = 1.0 / det;
+	vec3 s = ray_origin - p1;
+	float u = inv_det * dot(s, ray_cross_e2);
+
+	if ((u < 0 && abs(u) > epsilon) || (u > 1 && abs(u - 1) > epsilon))
+		return false;
+
+	vec3 s_cross_e1 = cross(s, edge1);
+	float v = inv_det * dot(ray_vector, s_cross_e1);
+
+	if ((v < 0 && abs(v) > epsilon) || (u + v > 1 && abs(u + v - 1) > epsilon))
+		return false;
+
+	// At this stage we can compute t to find out where the intersection point is on the line.
+	float t = inv_det * dot(edge2, s_cross_e1);
+
+	if (t > epsilon) { // ray intersection
+		hitLoc = vec3(ray_origin + ray_vector * t);
+		return true;
+	} else // This means that there is a line intersection but not a ray intersection.
+		return false;
+}
+
+void main() {
+    ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
+    ivec2 size = imageSize(imgOutput);
+
+	if (pixel.x >= size.x || pixel.y >= size.y) return;
+
+	vec2 uv = (vec2(pixel) / vec2(size)) * 2.0 - 1.0;
+	uv.x *= aspect;
+
+	// make ray
+	vec3 camForward = normalize(camOrientation);
+	vec3 camRight = normalize(cross(camForward, vec3(0,1,0)));
+	vec3 camUp = cross(camRight, camForward);
+
+	float px = uv.x * tan(radians(fov)/2.0);
+	float py = uv.y * tan(radians(fov)/2.0);
+
+	vec3 rayDir = normalize(camForward + px * camRight + py * camUp);
+	
+	vec3 hitLoc;
+	float closestDist = 3.40282347e+38;
+	bool hit = false;
+	vec4 color = vec4(0.0, 0.0, 0.0, 1.0);
+	// test for closest hit
+	for (int i = 0; i < indices.length(); i += 3) {
+
+		uint i1 = indices[i];
+		uint i2 = indices[i+1];
+		uint i3 = indices[i+2];
+
+		vec3 p1 = vec3(model * vec4(positions[i1].xyz, 1.f));
+		vec3 p2 = vec3(model * vec4(positions[i2].xyz, 1.f));
+		vec3 p3 = vec3(model * vec4(positions[i3].xyz, 1.f));
+
+		vec3 _hitLoc;
+		if (RayIntersectsTriangle(camPos, rayDir, p1, p2, p3, _hitLoc)) {
+			float newDist = distance(camPos, _hitLoc);
+			if (newDist < closestDist) {
+				closestDist = newDist;
+				hit = true;
+				hitLoc = _hitLoc;
+				color = vec4(0, 1, 1, 1);
+			}
+		}
+	}
+
+	// now shoot another ray and see if that hits something or is able to reach the sun
+	for (int i = 0; i < indices.length(); i += 3) {
+		uint i1 = indices[i];
+		uint i2 = indices[i+1];
+		uint i3 = indices[i+2];
+
+		vec3 p1 = vec3(model * vec4(positions[i1].xyz, 1.f));
+		vec3 p2 = vec3(model * vec4(positions[i2].xyz, 1.f));
+		vec3 p3 = vec3(model * vec4(positions[i3].xyz, 1.f));
+
+		vec3 edge1 = p2 - p1;
+		vec3 edge2 = p3 - p1;
+		vec3 faceNormal = normalize(cross(edge1, edge2));
+
+		vec3 _hitLoc;
+		if (RayIntersectsTriangle(hitLoc + (faceNormal * 0.001f), lightDir, p1, p2, p3, _hitLoc)) {
+			color = vec4(0, 0.2f, 0.2f, 1);
+			break;
+		}
+	}
+
+    imageStore(imgOutput, pixel, color);
+}
