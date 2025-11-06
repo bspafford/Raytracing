@@ -20,7 +20,8 @@ public:
 	glm::vec3 getPos();
 
 	std::vector<Mesh>& getMeshes();
-	std::vector<glm::mat4>& getMatricesMeshes();
+	std::vector<glm::mat4> getMatricesMeshes();
+	std::vector<Texture> getLoadedTex();
 
 	static inline std::vector<Model*> instances;
 

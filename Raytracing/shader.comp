@@ -4,14 +4,23 @@ layout (local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
 	
 // images 
 layout(rgba32f, binding = 0) uniform image2D imgOutput;
+layout(binding = 1) uniform sampler2D textures[8]; // up to 8 textures
+
+struct Vertex {
+	vec3 position; float pad1;
+    vec3 normal;   float pad2;
+    vec3 color;    float pad3;
+    vec2 texUV;    vec2 pad4;
+};
 
 // variables
-layout(std430, binding = 0) buffer Vertices { vec4 positions[]; };
+layout(std430, binding = 0) buffer VertexBuffer  { Vertex vertices[]; };
 layout(std430, binding = 1) buffer Indices { uint indices[]; };
+layout(std430, binding = 2) buffer MeshProj { mat4 meshProj[]; };
+layout(std430, binding = 3) buffer MeshStartLoc { uint meshStartLoc[]; };
 
 uniform mat4 projection;
 uniform mat4 invProj;
-uniform mat4 model;
 uniform vec3 camPos;
 uniform vec3 camOrientation;
 uniform mat4 view;
@@ -60,6 +69,22 @@ bool RayIntersectsTriangle(const vec3 ray_origin,
 		return false;
 }
 
+vec3 barycentric(vec3 p, vec3 a, vec3 b, vec3 c) {
+    vec3 v0 = b - a;
+    vec3 v1 = c - a;
+    vec3 v2 = p - a;
+    float d00 = dot(v0, v0);
+    float d01 = dot(v0, v1);
+    float d11 = dot(v1, v1);
+    float d20 = dot(v2, v0);
+    float d21 = dot(v2, v1);
+    float denom = d00 * d11 - d01 * d01;
+    float v = (d11 * d20 - d01 * d21) / denom;
+    float w = (d00 * d21 - d01 * d20) / denom;
+    float u = 1.0 - v - w;
+    return vec3(u, v, w);
+}
+
 void main() {
     ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
     ivec2 size = imageSize(imgOutput);
@@ -78,54 +103,88 @@ void main() {
 	float py = uv.y * tan(radians(fov)/2.0);
 
 	vec3 rayDir = normalize(camForward + px * camRight + py * camUp);
-	
-	vec3 hitLoc;
-	float closestDist = 3.40282347e+38;
-	bool hit = false;
-	vec4 color = vec4(0.0, 0.0, 0.0, 1.0);
-	// test for closest hit
-	for (int i = 0; i < indices.length(); i += 3) {
 
-		uint i1 = indices[i];
-		uint i2 = indices[i+1];
-		uint i3 = indices[i+2];
+	// background color
+	vec4 color = vec4(0, 0, 0, 1);
+	vec4 texColor  = vec4(0, 0, 0, 1);
+	vec3 startPos = camPos;
+	vec3 startDir = rayDir;
+	vec3 hitColor;
+	vec2 hitUV;
+	uint hitMeshIndex;
+	int bounceNum = 2;
+	for (int n = 0; n < bounceNum; n++) {
+		uint meshIndex = 0;
+		vec3 hitLoc;
+		vec3 hitNormal;
+		float closestDist = 3.40282347e+38;
+		bool hit = false;
+		for (int i = 0; i < indices.length(); i += 3) {
+			if (meshIndex + 1 < meshStartLoc.length() && i == meshStartLoc[meshIndex + 1])
+				meshIndex++;
 
-		vec3 p1 = vec3(model * vec4(positions[i1].xyz, 1.f));
-		vec3 p2 = vec3(model * vec4(positions[i2].xyz, 1.f));
-		vec3 p3 = vec3(model * vec4(positions[i3].xyz, 1.f));
+			uint i1 = indices[i];
+			uint i2 = indices[i+1];
+			uint i3 = indices[i+2];
 
-		vec3 _hitLoc;
-		if (RayIntersectsTriangle(camPos, rayDir, p1, p2, p3, _hitLoc)) {
-			float newDist = distance(camPos, _hitLoc);
-			if (newDist < closestDist) {
-				closestDist = newDist;
-				hit = true;
-				hitLoc = _hitLoc;
-				color = vec4(0, 1, 1, 1);
+			vec3 p1 = vec3(meshProj[meshIndex] * vec4(vertices[i1].position, 1.f));
+			vec3 p2 = vec3(meshProj[meshIndex] * vec4(vertices[i2].position, 1.f));
+			vec3 p3 = vec3(meshProj[meshIndex] * vec4(vertices[i3].position, 1.f));
+
+			// flat shading
+			vec3 edge1 = p2 - p1;
+			vec3 edge2 = p3 - p1;
+			vec3 faceNormal = normalize(cross(edge1, edge2));
+
+			// calculate color and texture uv
+			vec3 c1 = vertices[i1].color;
+			vec3 c2 = vertices[i2].color;
+			vec3 c3 = vertices[i3].color;
+
+			vec2 uv1 = vertices[i1].texUV;
+			vec2 uv2 = vertices[i2].texUV;
+			vec2 uv3 = vertices[i3].texUV;
+
+			vec3 bary = barycentric(hitLoc, p1, p2, p3);
+			vec3 _hitColor = c1 * bary.x + c2 * bary.y + c3 * bary.z;
+			vec2 _hitUV = uv1 * bary.x + uv2 * bary.y + uv3 * bary.z;
+
+			vec3 _hitLoc;
+			if (RayIntersectsTriangle(startPos, startDir, p1, p2, p3, _hitLoc)) {
+				float newDist = distance(startPos, _hitLoc);
+				if (newDist < closestDist) {
+					closestDist = newDist;
+					hit = true;
+					hitLoc = _hitLoc;
+					hitNormal = faceNormal;
+					hitColor = _hitColor;
+					hitUV = _hitUV;
+					hitMeshIndex = meshIndex;
+					color = vec4(hitColor, 1);
+					texColor = texture(textures[hitMeshIndex], hitUV);
+				}
 			}
 		}
-	}
 
-	// now shoot another ray and see if that hits something or is able to reach the sun
-	for (int i = 0; i < indices.length(); i += 3) {
-		uint i1 = indices[i];
-		uint i2 = indices[i+1];
-		uint i3 = indices[i+2];
-
-		vec3 p1 = vec3(model * vec4(positions[i1].xyz, 1.f));
-		vec3 p2 = vec3(model * vec4(positions[i2].xyz, 1.f));
-		vec3 p3 = vec3(model * vec4(positions[i3].xyz, 1.f));
-
-		vec3 edge1 = p2 - p1;
-		vec3 edge2 = p3 - p1;
-		vec3 faceNormal = normalize(cross(edge1, edge2));
-
-		vec3 _hitLoc;
-		if (RayIntersectsTriangle(hitLoc + (faceNormal * 0.001f), lightDir, p1, p2, p3, _hitLoc)) {
-			color = vec4(0, 0.2f, 0.2f, 1);
+		// update pos and dir
+		if (hit) {
+			startPos = hitLoc + (hitNormal * 0.0001f);
+			// either bounce off normal, random direction based on material, or go to light
+			if (n == bounceNum - 1) { // no more bounces, figure out color
+				// should do hit color then weaken it by like bounce num or something
+				// relistically should add each color it hits and make it get weaker and weaker?
+				color = vec4(hitColor * 0.2f, 1);
+				texColor = vec4(vec3(texture(textures[hitMeshIndex], hitUV) * .2f), 1.f);
+			} else if (n == bounceNum - 2) // one more bounce, go to light
+				startDir = lightDir;
+			else { // just reflect perfectly off normal for now
+				if (dot(startDir, hitNormal) > 0.f)
+					hitNormal = -hitNormal; // ensure normal opposes the ray
+				startDir = normalize(startDir - 2.f * dot(startDir, hitNormal) * hitNormal);
+			}
+		} else
 			break;
-		}
 	}
 
-    imageStore(imgOutput, pixel, color);
+    imageStore(imgOutput, pixel, texColor);
 }
