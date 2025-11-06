@@ -280,12 +280,12 @@ std::vector<Vertex> Model::assembleVertices
 		vertices.push_back
 		(
 			Vertex
-			{
+			(
 				positions[i],
 				normals[i],
 				glm::vec3(1.0f, 1.0f, 1.0f),
 				texUVs[i]
-			}
+			)
 		);
 	}
 	return vertices;
@@ -335,6 +335,22 @@ std::vector<Mesh>& Model::getMeshes() {
 	return meshes;
 }
 
-std::vector<glm::mat4>& Model::getMatricesMeshes() {
-	return matricesMeshes;
+std::vector<glm::mat4> Model::getMatricesMeshes() {
+	std::vector<glm::mat4> matMeshes = matricesMeshes;
+
+	// Transform the matrices to their correct form
+	glm::mat4 trans = glm::translate(glm::mat4(1.0f), pos);
+	glm::mat4 rot = glm::mat4_cast(glm::quat(1.0f, 0.0f, 0.0f, 0.0f));
+	glm::mat4 sca = glm::scale(glm::mat4(1.0f), scale);
+
+	glm::mat4 modelTransform = trans * rot * sca;
+
+	for (glm::mat4& mat : matMeshes) {
+		mat = modelTransform * mat;
+	}
+	return matMeshes;
+}
+
+std::vector<Texture> Model::getLoadedTex() {
+	return loadedTex;
 }

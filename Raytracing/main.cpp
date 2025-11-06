@@ -2,6 +2,7 @@
 #include "Camera.h"
 #include "model.h"
 #include "computeShader.h"
+#include "SSBO.h"
 
 int main() {
 	Main* _main = new Main();
@@ -87,30 +88,41 @@ int Main::createWindow() {
 
 	setupQuad();
 
-	std::vector<glm::vec4> positionList;
-	std::vector<GLuint> indiceList = cube->getMeshes()[0].indices;
-	for (const Vertex vertex : cube->getMeshes()[0].vertices) {
-		positionList.push_back(glm::vec4(vertex.position, 1.f));
+	std::vector<Vertex> vertexList;
+	std::vector<GLuint> indiceList;
+	std::vector<glm::mat4> meshMatrices;
+	std::vector<GLuint> meshStartLoc;
+	GLuint texCount = 0;
+
+	computeShader->Activate();
+	// combine all objects vertices and indices
+	GLuint indiceOffset = 0;
+	for (Model* model : Model::instances) {
+		std::vector<glm::mat4> _meshMatrices = model->getMatricesMeshes();
+		// only binds first texture
+		Texture tex = model->getLoadedTex()[0];
+		glActiveTexture(GL_TEXTURE1 + texCount);
+		glBindTexture(GL_TEXTURE_2D, tex.ID);
+		glUniform1i(glGetUniformLocation(computeShader->ID, ("textures[" + std::to_string(texCount) + "]").c_str()), texCount + 1);
+		texCount++;
+
+		meshMatrices.insert(meshMatrices.end(), _meshMatrices.begin(), _meshMatrices.end());
+		for (Mesh& mesh : model->getMeshes()) {
+			vertexList.insert(vertexList.end(), mesh.vertices.begin(), mesh.vertices.end());
+
+			for (GLuint& indice : mesh.indices)
+				indiceList.push_back(indice + indiceOffset);
+
+			meshStartLoc.push_back(indiceOffset);
+			indiceOffset += mesh.vertices.size();
+		}
 	}
 
 	// setup SSBOs
-	GLuint vertexSSBO;
-	glGenBuffers(1, &vertexSSBO);
-	glBindBuffer(GL_SHADER_STORAGE_BUFFER, vertexSSBO);
-	// allocate and upload data
-	glBufferData(GL_SHADER_STORAGE_BUFFER, positionList.size() * sizeof(glm::vec4), positionList.data(), GL_STATIC_DRAW);
-	// bind ssbo to binding point 0
-	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, vertexSSBO);
-	glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
-
-	GLuint indicesSSBO;
-	glGenBuffers(1, &indicesSSBO);
-	glBindBuffer(GL_SHADER_STORAGE_BUFFER, indicesSSBO);
-	// allocate and upload data
-	glBufferData(GL_SHADER_STORAGE_BUFFER, indiceList.size() * sizeof(unsigned int), indiceList.data(), GL_STATIC_DRAW);
-	// bind ssbo to binding point 0
-	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, indicesSSBO);
-	glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+	SSBO vertexSSBO(vertexList.data(), vertexList.size() * sizeof(Vertex));
+	SSBO indicesSSBO(indiceList.data(), indiceList.size() * sizeof(GLuint));
+	SSBO meshMatrixSSBO(meshMatrices.data(), meshMatrices.size() * sizeof(glm::mat4));
+	SSBO meshStartLocSSBO(meshStartLoc.data(), meshStartLoc.size() * sizeof(GLuint));
 
 	auto lastTime = std::chrono::steady_clock::now();
 	float time = 0;
@@ -128,14 +140,13 @@ int Main::createWindow() {
 			computeShader->Activate();
 			computeShader->setMat4("projection", camera->cameraMatrix);
 			computeShader->setMat4("invProj", glm::inverse(camera->cameraMatrix));
-			computeShader->setMat4("model", cube->getMatricesMeshes()[0]);
 			computeShader->setVec3("camPos", camera->Position);
 			computeShader->setVec3("camOrientation", camera->Orientation);
 			computeShader->setMat4("view", camera->view);
 			computeShader->setMat4("invView", glm::inverse(camera->view));
 			computeShader->setFloat("aspect", stuff::screenSize.x / stuff::screenSize.y);
 			computeShader->setFloat("fov", camera->FOVdeg);
-			computeShader->setVec3("lightDir", glm::normalize(glm::vec3(1, 0.75, -.5f)));
+			computeShader->setVec3("lightDir", glm::normalize(glm::vec3(cos(time), 0.75, sin(time))));
 
 			glDispatchCompute((TEXTURE_WIDTH + 15) / 16, (TEXTURE_HEIGHT + 15) / 16, 1); // simple strat to make somethiung like width = 500 into 512 which is divisible by 16
 			// make sure writing to image has finished before read
@@ -147,9 +158,9 @@ int Main::createWindow() {
 			glBindTexture(GL_TEXTURE_2D, texture);
 			renderQuad();
 		} else {
-			glEnable(GL_DEPTH_TEST);
 			glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 			shader->Activate();
+			shader->setVec3("lightDir", glm::normalize(glm::vec3(cos(time), 0.75, sin(time))));
 			Draw(shader);
 		}
 
@@ -175,51 +186,9 @@ void Main::Start() {
 	//camera = new Camera(stuff::screenSize.x, stuff::screenSize.y, glm::vec3(6, 5, 6));
 	camera = new Camera(stuff::screenSize.x, stuff::screenSize.y, glm::vec3(0, 0, 5));
 	//cube = new Model("models/bunny/scene.gltf");
-	cube = new Model("models/cube.gltf");
-}
-
-bool RayIntersectsTriangle(const glm::vec3& ray_origin,
-	const glm::vec3& ray_vector,
-	glm::vec3& p1,
-	glm::vec3& p2,
-	glm::vec3& p3,
-	glm::vec3& hitLoc)
-{
-	p1 = -p1;
-	p2 = -p2;
-	p3 = -p3;
-
-	constexpr float epsilon = std::numeric_limits<float>::epsilon();
-
-	glm::vec3 edge1 = p2 - p1;
-	glm::vec3 edge2 = p3 - p1;
-	glm::vec3 ray_cross_e2 = cross(ray_vector, edge2);
-	float det = glm::dot(edge1, ray_cross_e2);
-
-	if (det > -epsilon && det < epsilon)
-		return false;    // This ray is parallel to this triangle.
-
-	float inv_det = 1.0 / det;
-	glm::vec3 s = ray_origin - p1;
-	float u = inv_det * glm::dot(s, ray_cross_e2);
-
-	if ((u < 0 && abs(u) > epsilon) || (u > 1 && abs(u - 1) > epsilon))
-		return false;
-
-	glm::vec3 s_cross_e1 = cross(s, edge1);
-	float v = inv_det * glm::dot(ray_vector, s_cross_e1);
-
-	if ((v < 0 && abs(v) > epsilon) || (u + v > 1 && abs(u + v - 1) > epsilon))
-		return false;
-
-	// At this stage we can compute t to find out where the intersection point is on the line.
-	float t = inv_det * glm::dot(edge2, s_cross_e1);
-
-	if (t > epsilon) { // ray intersection
-		hitLoc = glm::vec3(ray_origin + ray_vector * t);
-		return true;
-	} else // This means that there is a line intersection but not a ray intersection.
-		return false;
+	sphere = new Model("models/sphere/sphere.gltf");
+	cube = new Model("models/cube/cube.gltf");
+	sphere->setPos(glm::vec3(2, 2, 2));
 }
 
 void Main::Update(float deltaTime) {
@@ -228,7 +197,6 @@ void Main::Update(float deltaTime) {
 
 void Main::Draw(Shader* shader) {
 	shader->Activate();
-
-	shader->setVec3("lightDir", glm::normalize(glm::vec3(1, 0.75, -.5f)));
 	cube->Draw(shader, camera);
+	sphere->Draw(shader, camera);
 }
