@@ -92,13 +92,15 @@ int Main::createWindow() {
 	std::vector<GLuint> indiceList;
 	std::vector<glm::mat4> meshMatrices;
 	std::vector<GLuint> meshStartLoc;
+	std::vector<GLuint> metallicList = { 1, 1 };
+	std::vector<GLuint> shadedSmooth = { 1, 1 };
 	GLuint texCount = 0;
 
 	computeShader->Activate();
 	// combine all objects vertices and indices
 	GLuint indiceOffset = 0;
+	GLuint meshOffset = 0;
 	for (Model* model : Model::instances) {
-		std::vector<glm::mat4> _meshMatrices = model->getMatricesMeshes();
 		// only binds first texture
 		Texture tex = model->getLoadedTex()[0];
 		glActiveTexture(GL_TEXTURE1 + texCount);
@@ -106,6 +108,7 @@ int Main::createWindow() {
 		glUniform1i(glGetUniformLocation(computeShader->ID, ("textures[" + std::to_string(texCount) + "]").c_str()), texCount + 1);
 		texCount++;
 
+		std::vector<glm::mat4> _meshMatrices = model->getMatricesMeshes();
 		meshMatrices.insert(meshMatrices.end(), _meshMatrices.begin(), _meshMatrices.end());
 		for (Mesh& mesh : model->getMeshes()) {
 			vertexList.insert(vertexList.end(), mesh.vertices.begin(), mesh.vertices.end());
@@ -113,9 +116,15 @@ int Main::createWindow() {
 			for (GLuint& indice : mesh.indices)
 				indiceList.push_back(indice + indiceOffset);
 
-			meshStartLoc.push_back(indiceOffset);
+			meshStartLoc.push_back(meshOffset);
+			meshOffset += mesh.indices.size();
 			indiceOffset += mesh.vertices.size();
 		}
+	}
+
+	for (int i = 0; i < indiceList.size(); i++) {
+		if (indiceList[i] >= 233)
+			std::cout << "pause!\n";
 	}
 
 	// setup SSBOs
@@ -123,6 +132,8 @@ int Main::createWindow() {
 	SSBO indicesSSBO(indiceList.data(), indiceList.size() * sizeof(GLuint));
 	SSBO meshMatrixSSBO(meshMatrices.data(), meshMatrices.size() * sizeof(glm::mat4));
 	SSBO meshStartLocSSBO(meshStartLoc.data(), meshStartLoc.size() * sizeof(GLuint));
+	SSBO metallicSSBO(metallicList.data(), metallicList.size() * sizeof(GLuint));
+	SSBO shadedSmoothSSBO(shadedSmooth.data(), shadedSmooth.size() * sizeof(bool));
 
 	auto lastTime = std::chrono::steady_clock::now();
 	float time = 0;
@@ -146,7 +157,8 @@ int Main::createWindow() {
 			computeShader->setMat4("invView", glm::inverse(camera->view));
 			computeShader->setFloat("aspect", stuff::screenSize.x / stuff::screenSize.y);
 			computeShader->setFloat("fov", camera->FOVdeg);
-			computeShader->setVec3("lightDir", glm::normalize(glm::vec3(cos(time), 0.75, sin(time))));
+			//computeShader->setVec3("lightDir", glm::normalize(glm::vec3(cos(time), 0.75, sin(time))));
+			computeShader->setVec3("lightDir", glm::normalize(glm::vec3(1.f, 0.75f, -0.5f)));
 
 			glDispatchCompute((TEXTURE_WIDTH + 15) / 16, (TEXTURE_HEIGHT + 15) / 16, 1); // simple strat to make somethiung like width = 500 into 512 which is divisible by 16
 			// make sure writing to image has finished before read
@@ -177,15 +189,7 @@ void Main::Start() {
 	quadShader = new Shader("quadShader.vert", "quadShader.frag");
 	computeShader = new ComputeShader("shader.comp");
 
-	GLint data[3];
-	glGetIntegeri_v(GL_MAX_COMPUTE_WORK_GROUP_COUNT, 0, &data[0]);
-	glGetIntegeri_v(GL_MAX_COMPUTE_WORK_GROUP_COUNT, 0, &data[1]);
-	glGetIntegeri_v(GL_MAX_COMPUTE_WORK_GROUP_COUNT, 0, &data[2]);
-	std::cout << "data: " << data[0] << ", " << data[1] << ", " << data[2] << "\n";
-
-	//camera = new Camera(stuff::screenSize.x, stuff::screenSize.y, glm::vec3(6, 5, 6));
 	camera = new Camera(stuff::screenSize.x, stuff::screenSize.y, glm::vec3(0, 0, 5));
-	//cube = new Model("models/bunny/scene.gltf");
 	sphere = new Model("models/sphere/sphere.gltf");
 	cube = new Model("models/cube/cube.gltf");
 	sphere->setPos(glm::vec3(2, 2, 2));

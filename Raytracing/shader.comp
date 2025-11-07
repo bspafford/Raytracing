@@ -18,6 +18,8 @@ layout(std430, binding = 0) buffer VertexBuffer  { Vertex vertices[]; };
 layout(std430, binding = 1) buffer Indices { uint indices[]; };
 layout(std430, binding = 2) buffer MeshProj { mat4 meshProj[]; };
 layout(std430, binding = 3) buffer MeshStartLoc { uint meshStartLoc[]; };
+layout(std430, binding = 4) buffer Metallic { uint metallicList[]; };
+layout(std430, binding = 5) buffer ShadedSmooth { uint shadedSmooth[]; };
 
 uniform mat4 projection;
 uniform mat4 invProj;
@@ -91,33 +93,35 @@ void main() {
 
 	if (pixel.x >= size.x || pixel.y >= size.y) return;
 
+	// make ray
 	vec2 uv = (vec2(pixel) / vec2(size)) * 2.0 - 1.0;
 	uv.x *= aspect;
-
-	// make ray
 	vec3 camForward = normalize(camOrientation);
 	vec3 camRight = normalize(cross(camForward, vec3(0,1,0)));
 	vec3 camUp = cross(camRight, camForward);
-
 	float px = uv.x * tan(radians(fov)/2.0);
 	float py = uv.y * tan(radians(fov)/2.0);
-
 	vec3 rayDir = normalize(camForward + px * camRight + py * camUp);
 
 	// background color
-	vec4 color = vec4(0, 0, 0, 1);
-	vec4 texColor  = vec4(0, 0, 0, 1);
+	vec3 throughput = vec3(1.f);
+	vec4 color = vec4(0.0);
 	vec3 startPos = camPos;
 	vec3 startDir = rayDir;
-	vec3 hitColor;
 	vec2 hitUV;
 	uint hitMeshIndex;
-	int bounceNum = 2;
-	for (int n = 0; n < bounceNum; n++) {
+	uint firstHitIndex;
+	int maxBounces = 5; // max bounces
+	for (int bounce = 0; bounce < maxBounces; ++bounce) { // last 1 is for the light check
+		bool inShadow = false;
 		uint meshIndex = 0;
 		vec3 hitLoc;
 		vec3 hitNormal;
 		float closestDist = 3.40282347e+38;
+		float lightDist = 3.40282347e+38;
+		vec3 hitP1;
+		vec3 hitP2;
+		vec3 hitP3;
 		bool hit = false;
 		for (int i = 0; i < indices.length(); i += 3) {
 			if (meshIndex + 1 < meshStartLoc.length() && i == meshStartLoc[meshIndex + 1])
@@ -131,60 +135,67 @@ void main() {
 			vec3 p2 = vec3(meshProj[meshIndex] * vec4(vertices[i2].position, 1.f));
 			vec3 p3 = vec3(meshProj[meshIndex] * vec4(vertices[i3].position, 1.f));
 
-			// flat shading
-			vec3 edge1 = p2 - p1;
-			vec3 edge2 = p3 - p1;
-			vec3 faceNormal = normalize(cross(edge1, edge2));
-
-			// calculate color and texture uv
-			vec3 c1 = vertices[i1].color;
-			vec3 c2 = vertices[i2].color;
-			vec3 c3 = vertices[i3].color;
-
-			vec2 uv1 = vertices[i1].texUV;
-			vec2 uv2 = vertices[i2].texUV;
-			vec2 uv3 = vertices[i3].texUV;
-
-			vec3 bary = barycentric(hitLoc, p1, p2, p3);
-			vec3 _hitColor = c1 * bary.x + c2 * bary.y + c3 * bary.z;
-			vec2 _hitUV = uv1 * bary.x + uv2 * bary.y + uv3 * bary.z;
-
 			vec3 _hitLoc;
 			if (RayIntersectsTriangle(startPos, startDir, p1, p2, p3, _hitLoc)) {
 				float newDist = distance(startPos, _hitLoc);
 				if (newDist < closestDist) {
-					closestDist = newDist;
+					if (bounce == 0) // first hit
+						firstHitIndex = meshIndex;
 					hit = true;
 					hitLoc = _hitLoc;
-					hitNormal = faceNormal;
-					hitColor = _hitColor;
-					hitUV = _hitUV;
+					closestDist = newDist;
+					hitP1 = p1;
+					hitP2 = p2;
+					hitP3 = p3;
+
+					vec3 bary = barycentric(hitLoc, p1, p2, p3);
+
+					// flat shading
+					if (shadedSmooth[meshIndex] == 0) { // flat shading
+						vec3 edge1 = p2 - p1;
+						vec3 edge2 = p3 - p1;
+						hitNormal = normalize(cross(edge1, edge2));
+					} else { // smooth shading
+						vec3 n1 = vec3(meshProj[meshIndex] * vec4(vertices[i1].normal, 0.f));
+						vec3 n2 = vec3(meshProj[meshIndex] * vec4(vertices[i2].normal, 0.f));
+						vec3 n3 = vec3(meshProj[meshIndex] * vec4(vertices[i3].normal, 0.f));
+						hitNormal = normalize(n1 * bary.x + n2 * bary.y + n3 * bary.z);
+					}
+
+					// calculate color and texture uv
+					vec3 c1 = vertices[i1].color;
+					vec3 c2 = vertices[i2].color;
+					vec3 c3 = vertices[i3].color;
+
+					vec2 uv1 = vertices[i1].texUV;
+					vec2 uv2 = vertices[i2].texUV;
+					vec2 uv3 = vertices[i3].texUV;
+
+					hitUV = uv1 * bary.x + uv2 * bary.y + uv3 * bary.z;
 					hitMeshIndex = meshIndex;
-					color = vec4(hitColor, 1);
-					texColor = texture(textures[hitMeshIndex], hitUV);
 				}
 			}
 		}
 
 		// update pos and dir
 		if (hit) {
-			startPos = hitLoc + (hitNormal * 0.0001f);
-			// either bounce off normal, random direction based on material, or go to light
-			if (n == bounceNum - 1) { // no more bounces, figure out color
-				// should do hit color then weaken it by like bounce num or something
-				// relistically should add each color it hits and make it get weaker and weaker?
-				color = vec4(hitColor * 0.2f, 1);
-				texColor = vec4(vec3(texture(textures[hitMeshIndex], hitUV) * .2f), 1.f);
-			} else if (n == bounceNum - 2) // one more bounce, go to light
-				startDir = lightDir;
-			else { // just reflect perfectly off normal for now
+			startPos = hitLoc + (hitNormal * 1e-4);
+
+			vec3 baseColor = texture(textures[hitMeshIndex], hitUV).rgb;
+			color.rgb = mix(color.rgb, baseColor, throughput); // or some factor based on bounce
+			throughput *= .75f;
+
+			if (metallicList[hitMeshIndex] > 0) { // just reflect perfectly off normal if metallic isn't 0
 				if (dot(startDir, hitNormal) > 0.f)
 					hitNormal = -hitNormal; // ensure normal opposes the ray
 				startDir = normalize(startDir - 2.f * dot(startDir, hitNormal) * hitNormal);
+			} else if (metallicList[hitMeshIndex] == 0) { // light doesn't bounce, so stop looking
+				break;
 			}
-		} else
+		} else { // didn't hit anything
 			break;
+		}
 	}
 
-    imageStore(imgOutput, pixel, texColor);
+    imageStore(imgOutput, pixel, color);
 }
