@@ -6,6 +6,10 @@
 
 using json = nlohmann::json;
 
+struct MaterialData {
+	float metallicFactor;
+	float roughnessFactor = 1.f;
+};
 
 class Model {
 public:
@@ -21,6 +25,7 @@ public:
 
 	std::vector<Mesh>& getMeshes();
 	std::vector<glm::mat4> getMatricesMeshes();
+	std::vector<MaterialData> getMaterialData();
 	std::vector<Texture> getLoadedTex();
 
 	static inline std::vector<Model*> instances;

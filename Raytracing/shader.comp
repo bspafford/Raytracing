@@ -13,13 +13,17 @@ struct Vertex {
     vec2 texUV;    vec2 pad4;
 };
 
+struct MaterialData {
+	float metallicFactor;
+	float roughnessFactor;
+};
+
 // variables
 layout(std430, binding = 0) buffer VertexBuffer  { Vertex vertices[]; };
 layout(std430, binding = 1) buffer Indices { uint indices[]; };
 layout(std430, binding = 2) buffer MeshProj { mat4 meshProj[]; };
 layout(std430, binding = 3) buffer MeshStartLoc { uint meshStartLoc[]; };
-layout(std430, binding = 4) buffer Metallic { uint metallicList[]; };
-layout(std430, binding = 5) buffer ShadedSmooth { uint shadedSmooth[]; };
+layout(std430, binding = 4) buffer MaterialList { MaterialData materialList[]; };
 
 uniform mat4 projection;
 uniform mat4 invProj;
@@ -150,17 +154,10 @@ void main() {
 
 					vec3 bary = barycentric(hitLoc, p1, p2, p3);
 
-					// flat shading
-					if (shadedSmooth[meshIndex] == 0) { // flat shading
-						vec3 edge1 = p2 - p1;
-						vec3 edge2 = p3 - p1;
-						hitNormal = normalize(cross(edge1, edge2));
-					} else { // smooth shading
-						vec3 n1 = vec3(meshProj[meshIndex] * vec4(vertices[i1].normal, 0.f));
-						vec3 n2 = vec3(meshProj[meshIndex] * vec4(vertices[i2].normal, 0.f));
-						vec3 n3 = vec3(meshProj[meshIndex] * vec4(vertices[i3].normal, 0.f));
-						hitNormal = normalize(n1 * bary.x + n2 * bary.y + n3 * bary.z);
-					}
+					vec3 n1 = vec3(meshProj[meshIndex] * vec4(vertices[i1].normal, 0.f));
+					vec3 n2 = vec3(meshProj[meshIndex] * vec4(vertices[i2].normal, 0.f));
+					vec3 n3 = vec3(meshProj[meshIndex] * vec4(vertices[i3].normal, 0.f));
+					hitNormal = normalize(n1 * bary.x + n2 * bary.y + n3 * bary.z);
 
 					// calculate color and texture uv
 					vec3 c1 = vertices[i1].color;
@@ -185,11 +182,11 @@ void main() {
 			color.rgb = mix(color.rgb, baseColor, throughput); // or some factor based on bounce
 			throughput *= .75f;
 
-			if (metallicList[hitMeshIndex] > 0) { // just reflect perfectly off normal if metallic isn't 0
+			if (materialList[hitMeshIndex].metallicFactor > 0) { // just reflect perfectly off normal if metallic isn't 0
 				if (dot(startDir, hitNormal) > 0.f)
 					hitNormal = -hitNormal; // ensure normal opposes the ray
 				startDir = normalize(startDir - 2.f * dot(startDir, hitNormal) * hitNormal);
-			} else if (metallicList[hitMeshIndex] == 0) { // light doesn't bounce, so stop looking
+			} else if (materialList[hitMeshIndex].metallicFactor == 0) { // light doesn't bounce, so stop looking
 				break;
 			}
 		} else { // didn't hit anything

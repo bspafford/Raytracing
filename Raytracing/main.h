@@ -29,6 +29,7 @@ private:
 	Camera* camera;
 	Model* cube;
 	Model* sphere;
+	Model* sphereFlat;
 
 	Shader* shader;
 	Shader* quadShader;

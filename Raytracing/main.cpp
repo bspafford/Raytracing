@@ -92,8 +92,7 @@ int Main::createWindow() {
 	std::vector<GLuint> indiceList;
 	std::vector<glm::mat4> meshMatrices;
 	std::vector<GLuint> meshStartLoc;
-	std::vector<GLuint> metallicList = { 1, 1 };
-	std::vector<GLuint> shadedSmooth = { 1, 1 };
+	std::vector<MaterialData> materialList;
 	GLuint texCount = 0;
 
 	computeShader->Activate();
@@ -110,9 +109,11 @@ int Main::createWindow() {
 
 		std::vector<glm::mat4> _meshMatrices = model->getMatricesMeshes();
 		meshMatrices.insert(meshMatrices.end(), _meshMatrices.begin(), _meshMatrices.end());
+
+		std::vector<MaterialData> materialData = model->getMaterialData();
+		materialList.insert(materialList.end(), materialData.begin(), materialData.end());
 		for (Mesh& mesh : model->getMeshes()) {
 			vertexList.insert(vertexList.end(), mesh.vertices.begin(), mesh.vertices.end());
-
 			for (GLuint& indice : mesh.indices)
 				indiceList.push_back(indice + indiceOffset);
 
@@ -128,12 +129,11 @@ int Main::createWindow() {
 	}
 
 	// setup SSBOs
-	SSBO vertexSSBO(vertexList.data(), vertexList.size() * sizeof(Vertex));
-	SSBO indicesSSBO(indiceList.data(), indiceList.size() * sizeof(GLuint));
-	SSBO meshMatrixSSBO(meshMatrices.data(), meshMatrices.size() * sizeof(glm::mat4));
-	SSBO meshStartLocSSBO(meshStartLoc.data(), meshStartLoc.size() * sizeof(GLuint));
-	SSBO metallicSSBO(metallicList.data(), metallicList.size() * sizeof(GLuint));
-	SSBO shadedSmoothSSBO(shadedSmooth.data(), shadedSmooth.size() * sizeof(bool));
+	SSBO::Bind(vertexList.data(), vertexList.size() * sizeof(Vertex));
+	SSBO::Bind(indiceList.data(), indiceList.size() * sizeof(GLuint));
+	SSBO::Bind(meshMatrices.data(), meshMatrices.size() * sizeof(glm::mat4));
+	SSBO::Bind(meshStartLoc.data(), meshStartLoc.size() * sizeof(GLuint));
+	SSBO::Bind(materialList.data(), materialList.size() * sizeof(MaterialData));
 
 	auto lastTime = std::chrono::steady_clock::now();
 	float time = 0;
@@ -193,6 +193,8 @@ void Main::Start() {
 	sphere = new Model("models/sphere/sphere.gltf");
 	cube = new Model("models/cube/cube.gltf");
 	sphere->setPos(glm::vec3(2, 2, 2));
+	sphereFlat = new Model("models/sphereFlat/sphere.gltf");
+	sphereFlat->setPos(glm::vec3(2, 2, -2));
 }
 
 void Main::Update(float deltaTime) {
