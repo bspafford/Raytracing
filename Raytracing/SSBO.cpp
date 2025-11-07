@@ -1,6 +1,7 @@
 #include "SSBO.h"
 
-SSBO::SSBO(const void* data, GLuint size) {
+void SSBO::Bind(const void* data, GLuint size) {
+	GLuint ID;
 	// create
 	glGenBuffers(1, &ID);
 	// bind

@@ -351,6 +351,20 @@ std::vector<glm::mat4> Model::getMatricesMeshes() {
 	return matMeshes;
 }
 
+std::vector<MaterialData> Model::getMaterialData() {
+	std::vector<MaterialData> materialData;
+	nlohmann::json& materials = JSON["materials"];
+	for (nlohmann::json& mat : materials) {
+		nlohmann::json& pbr = mat["pbrMetallicRoughness"];
+		materialData.push_back(MaterialData{
+			pbr.value("metallicFactor", 1.f),
+			pbr.value("roughnessFactor", 1.f)
+		});
+	}
+
+	return materialData;
+}
+
 std::vector<Texture> Model::getLoadedTex() {
 	return loadedTex;
 }
