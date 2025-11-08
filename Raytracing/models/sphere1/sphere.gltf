@@ -21,26 +21,28 @@
 	"materials":[
 		{
 			"doubleSided":true,
-			"name":"Material.001",
+			"name":"Material.005",
 			"pbrMetallicRoughness":{
 				"baseColorTexture":{
 					"index":0
 				},
-				"metallicFactor":0
+				"metallicFactor":0.5,
+				"roughnessFactor":0
 			}
 		}
 	],
 	"meshes":[
 		{
-			"name":"Icosphere.003",
+			"name":"Icosphere.005",
 			"primitives":[
 				{
 					"attributes":{
 						"POSITION":0,
 						"NORMAL":1,
-						"TEXCOORD_0":2
+						"TEXCOORD_0":2,
+						"TANGENT":3
 					},
-					"indices":3,
+					"indices":4,
 					"material":0
 				}
 			]
@@ -63,7 +65,7 @@
 		{
 			"bufferView":0,
 			"componentType":5126,
-			"count":960,
+			"count":205,
 			"max":[
 				1,
 				1,
@@ -79,17 +81,23 @@
 		{
 			"bufferView":1,
 			"componentType":5126,
-			"count":960,
+			"count":205,
 			"type":"VEC3"
 		},
 		{
 			"bufferView":2,
 			"componentType":5126,
-			"count":960,
+			"count":205,
 			"type":"VEC2"
 		},
 		{
 			"bufferView":3,
+			"componentType":5126,
+			"count":205,
+			"type":"VEC4"
+		},
+		{
+			"bufferView":4,
 			"componentType":5123,
 			"count":960,
 			"type":"SCALAR"
@@ -98,26 +106,32 @@
 	"bufferViews":[
 		{
 			"buffer":0,
-			"byteLength":11520,
+			"byteLength":2460,
 			"byteOffset":0,
 			"target":34962
 		},
 		{
 			"buffer":0,
-			"byteLength":11520,
-			"byteOffset":11520,
+			"byteLength":2460,
+			"byteOffset":2460,
 			"target":34962
 		},
 		{
 			"buffer":0,
-			"byteLength":7680,
-			"byteOffset":23040,
+			"byteLength":1640,
+			"byteOffset":4920,
+			"target":34962
+		},
+		{
+			"buffer":0,
+			"byteLength":3280,
+			"byteOffset":6560,
 			"target":34962
 		},
 		{
 			"buffer":0,
 			"byteLength":1920,
-			"byteOffset":30720,
+			"byteOffset":9840,
 			"target":34963
 		}
 	],
@@ -129,7 +143,7 @@
 	],
 	"buffers":[
 		{
-			"byteLength":32640,
+			"byteLength":11760,
 			"uri":"sphere.bin"
 		}
 	]

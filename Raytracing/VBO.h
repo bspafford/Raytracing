@@ -15,8 +15,9 @@ struct Vertex {
 	float pad3 = 0;
 	glm::vec2 texUV;
 	glm::vec2 pad4 = glm::vec2(0);
+	glm::vec4 tangent;
 
-	Vertex(glm::vec3 _position, glm::vec3 _normal, glm::vec3 _color, glm::vec2 _texUV) : position(_position), normal(_normal), color(_color), texUV(_texUV) {};
+	Vertex(glm::vec3 _position, glm::vec3 _normal, glm::vec3 _color, glm::vec2 _texUV, glm::vec4 _tangent) : position(_position), normal(_normal), color(_color), texUV(_texUV), tangent(_tangent) {};
 };
 
 class VBO {

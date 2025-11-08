@@ -7,8 +7,25 @@
 using json = nlohmann::json;
 
 struct MaterialData {
-	float metallicFactor;
+	GLuint64 baseColorTexture = -1;
+	GLuint64 normalTexture = -1;
+	GLuint64 metallicRoughnessTexture = -1;
+	int hasBaseTexture = 0;
+	int hasNoramlTexture = 0;
+	int hasMetallicRoughnessTexture = 0;
+	float metallicFactor = 1.f;
 	float roughnessFactor = 1.f;
+
+	MaterialData(GLuint64 _baseColorTexture, GLuint64 _normalTexture, GLuint64 _metallicRoughnessTexture, int _hasBaseTexture, int _hasNoramlTexture, int _hasMetallicRoughnessTexture, float _metallicFactor, float _roughnessFactor) :
+		baseColorTexture(_baseColorTexture),
+		normalTexture(_normalTexture),
+		metallicRoughnessTexture(_metallicRoughnessTexture),
+		hasBaseTexture(_hasBaseTexture),
+		hasNoramlTexture(_hasNoramlTexture),
+		hasMetallicRoughnessTexture(_hasMetallicRoughnessTexture),
+		metallicFactor(_metallicFactor),
+		roughnessFactor(_roughnessFactor) 
+	{};
 };
 
 class Model {
@@ -51,6 +68,8 @@ private:
 	std::vector<std::string> loadedTexName;
 	std::vector<Texture> loadedTex;
 
+	std::vector<MaterialData> materialData;
+
 	// Loads a single mesh by its index
 	void loadMesh(unsigned int indMesh);
 
@@ -69,7 +88,8 @@ private:
 	(
 		std::vector<glm::vec3> positions,
 		std::vector<glm::vec3> normals,
-		std::vector<glm::vec2> texUVs
+		std::vector<glm::vec2> texUVs,
+		std::vector<glm::vec4> tangents
 	);
 
 	// Helps with the assembly from above by grouping floats
