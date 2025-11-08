@@ -15,33 +15,35 @@
 	"nodes":[
 		{
 			"mesh":0,
-			"name":"Icosphere"
+			"name":"Icosphere.001"
 		}
 	],
 	"materials":[
 		{
 			"doubleSided":true,
-			"name":"Material.001",
+			"name":"Material",
 			"pbrMetallicRoughness":{
 				"baseColorTexture":{
 					"index":0
 				},
-				"metallicFactor":0.5,
-				"roughnessFactor":0
+				"metallicRoughnessTexture":{
+					"index":1
+				}
 			}
 		}
 	],
 	"meshes":[
 		{
-			"name":"Icosphere.003",
+			"name":"Icosphere",
 			"primitives":[
 				{
 					"attributes":{
 						"POSITION":0,
 						"NORMAL":1,
-						"TEXCOORD_0":2
+						"TEXCOORD_0":2,
+						"TANGENT":3
 					},
-					"indices":3,
+					"indices":4,
 					"material":0
 				}
 			]
@@ -51,13 +53,22 @@
 		{
 			"sampler":0,
 			"source":0
+		},
+		{
+			"sampler":0,
+			"source":1
 		}
 	],
 	"images":[
 		{
+			"mimeType":"image/jpeg",
+			"name":"Poliigon_MetalGoldPaint_7253_BaseColor",
+			"uri":"Poliigon_MetalGoldPaint_7253_BaseColor.jpg"
+		},
+		{
 			"mimeType":"image/png",
-			"name":"baseColor",
-			"uri":"baseColor.png"
+			"name":"Poliigon_MetalGoldPaint_7253_Metallic-Poliigon_MetalGoldPaint_7253_Roughness",
+			"uri":"Poliigon_MetalGoldPaint_7253_Metallic-Poliigon_MetalGoldPaint_7253_Roughness.png"
 		}
 	],
 	"accessors":[
@@ -91,6 +102,12 @@
 		},
 		{
 			"bufferView":3,
+			"componentType":5126,
+			"count":205,
+			"type":"VEC4"
+		},
+		{
+			"bufferView":4,
 			"componentType":5123,
 			"count":960,
 			"type":"SCALAR"
@@ -117,8 +134,14 @@
 		},
 		{
 			"buffer":0,
-			"byteLength":1920,
+			"byteLength":3280,
 			"byteOffset":6560,
+			"target":34962
+		},
+		{
+			"buffer":0,
+			"byteLength":1920,
+			"byteOffset":9840,
 			"target":34963
 		}
 	],
@@ -130,7 +153,7 @@
 	],
 	"buffers":[
 		{
-			"byteLength":8480,
+			"byteLength":11760,
 			"uri":"sphere.bin"
 		}
 	]

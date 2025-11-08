@@ -44,6 +44,7 @@ void Model::loadMesh(unsigned int indMesh) {
 	unsigned int posAccInd = JSON["meshes"][indMesh]["primitives"][0]["attributes"]["POSITION"];
 	unsigned int normalAccInd = JSON["meshes"][indMesh]["primitives"][0]["attributes"]["NORMAL"];
 	unsigned int texAccInd = JSON["meshes"][indMesh]["primitives"][0]["attributes"]["TEXCOORD_0"];
+	unsigned int tanAccInd = JSON["meshes"][indMesh]["primitives"][0]["attributes"]["TANGENT"];
 	unsigned int indAccInd = JSON["meshes"][indMesh]["primitives"][0]["indices"];
 
 	// Use accessor indices to get all vertices components
@@ -53,9 +54,11 @@ void Model::loadMesh(unsigned int indMesh) {
 	std::vector<glm::vec3> normals = groupFloatsVec3(normalVec);
 	std::vector<float> texVec = getFloats(JSON["accessors"][texAccInd]);
 	std::vector<glm::vec2> texUVs = groupFloatsVec2(texVec);
+	std::vector<float> tangentVec = getFloats(JSON["accessors"][tanAccInd]);
+	std::vector<glm::vec4> tangents = groupFloatsVec4(tangentVec);
 
 	// Combine all the vertex components and also get the indices and textures
-	std::vector<Vertex> vertices = assembleVertices(positions, normals, texUVs);
+	std::vector<Vertex> vertices = assembleVertices(positions, normals, texUVs, tangents);
 	std::vector<GLuint> indices = getIndices(JSON["accessors"][indAccInd]);
 	std::vector<Texture> textures = getTextures();
 
@@ -230,23 +233,80 @@ std::vector<Texture> Model::getTextures() {
 	std::string fileStr = std::string(file);
 	std::string fileDirectory = fileStr.substr(0, fileStr.find_last_of('/') + 1);
 
-	// Go over all images
-	for (unsigned int i = 0; i < JSON["images"].size(); i++) {
-		// uri of current texture
-		std::string texPath = JSON["images"][i]["uri"];
+	json materials = JSON["materials"];
+	json images = JSON["images"];
 
+	for (json& material : materials) {
+		json pbr = material["pbrMetallicRoughness"];
 		// Check if the texture has already been loaded
-		bool skip = false;
+		/*bool skip = false;
 		for (unsigned int j = 0; j < loadedTexName.size(); j++) {
 			if (loadedTexName[j] == texPath) {
 				textures.push_back(loadedTex[j]);
 				skip = true;
 				break;
 			}
+		}*/
+
+		// look to see the materials list, look for the basecolor, metallicroughtness, and normal texture, each one should have its own index
+		// if there isn't one then just ignore it
+		// then load the texture from the JSON["images"][image index]["uri"]
+		int normalIndex = -1;
+		if (material.contains("normalTexture"))
+			normalIndex = material["normalTexture"].value("index", -1);
+		int baseColorIndex = -1;
+		if (pbr.contains("baseColorTexture"))
+			baseColorIndex = pbr["baseColorTexture"].value("index", -1);
+		int metallicRoughnessIndex = -1;
+		if (pbr.contains("metallicRoughnessTexture"))
+			metallicRoughnessIndex = pbr["metallicRoughnessTexture"].value("index", -1);
+		float metallicFactor = pbr.value("metallicFactor", 1.f);
+		float roughnessFactor = pbr.value("roughnessFactor", 1.f);
+
+		int indexList[] = { normalIndex, baseColorIndex, metallicRoughnessIndex };
+		std::string typeList[] = { "normal", "diffuse", "specular" };
+
+		GLuint64 normalID = 0, baseID = 0, metallicID = 0;
+		int hasNormal = 0, hasBase = 0, hasMetallic = 0;
+
+		for (int i = 0; i < sizeof(indexList) / sizeof(int); i++) {
+			if (indexList[i] == -1)
+				continue;
+
+			std::string texPath = images[indexList[i]]["uri"];
+			Texture texture = Texture((fileDirectory + texPath).c_str(), typeList[i].c_str(), loadedTex.size());
+			textures.push_back(texture);
+			loadedTex.push_back(texture);
+			loadedTexName.push_back(texPath);
+
+			if (typeList[i] == "normal") {
+				normalID = texture.ID;
+				hasNormal = 1;
+			} else if (typeList[i] == "diffuse") {
+				baseID = texture.ID;
+				hasBase = 1;
+			} else if (typeList[i] == "specular") {
+				metallicID = texture.ID;
+				hasMetallic = 1;
+			}
 		}
 
+		materialData.push_back(MaterialData(
+			baseID,
+			normalID,
+			metallicID,
+			hasBase,
+			hasNormal,
+			hasMetallic,
+			metallicFactor,
+			roughnessFactor
+		));
+
 		// If the texture has been loaded, skip this
-		if (!skip) {
+		//if (!skip) {
+
+
+			/*
 			// Load diffuse texture
 			if (texPath.find("baseColor") != std::string::npos) {
 				Texture diffuse = Texture((fileDirectory + texPath).c_str(), "diffuse", loadedTex.size());
@@ -262,7 +322,8 @@ std::vector<Texture> Model::getTextures() {
 				loadedTex.push_back(specular);
 				loadedTexName.push_back(texPath);
 			}
-		}
+			*/
+		//}
 
 	}
 
@@ -273,7 +334,8 @@ std::vector<Vertex> Model::assembleVertices
 (
 	std::vector<glm::vec3> positions,
 	std::vector<glm::vec3> normals,
-	std::vector<glm::vec2> texUVs
+	std::vector<glm::vec2> texUVs,
+	std::vector<glm::vec4> tangents
 ) {
 	std::vector<Vertex> vertices;
 	for (int i = 0; i < positions.size(); i++) {
@@ -284,7 +346,8 @@ std::vector<Vertex> Model::assembleVertices
 				positions[i],
 				normals[i],
 				glm::vec3(1.0f, 1.0f, 1.0f),
-				texUVs[i]
+				texUVs[i],
+				tangents[i]
 			)
 		);
 	}
@@ -352,16 +415,6 @@ std::vector<glm::mat4> Model::getMatricesMeshes() {
 }
 
 std::vector<MaterialData> Model::getMaterialData() {
-	std::vector<MaterialData> materialData;
-	nlohmann::json& materials = JSON["materials"];
-	for (nlohmann::json& mat : materials) {
-		nlohmann::json& pbr = mat["pbrMetallicRoughness"];
-		materialData.push_back(MaterialData{
-			pbr.value("metallicFactor", 1.f),
-			pbr.value("roughnessFactor", 1.f)
-		});
-	}
-
 	return materialData;
 }
 

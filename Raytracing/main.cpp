@@ -40,6 +40,12 @@ void Main::renderQuad() {
 	glBindVertexArray(0);
 }
 
+struct MaterialGPU {
+	uint64_t baseColorHandle;
+	uint64_t metallicRoughnessHandle;
+	uint64_t normalHandle;
+};
+
 int Main::createWindow() {
 	glfwInit();
 
@@ -57,7 +63,7 @@ int Main::createWindow() {
 
 	glfwMakeContextCurrent(window);
 
-	if (!gladLoadGL(glfwGetProcAddress)) {
+	if (!gladLoadGL()) {
 		return -1;
 	}
 
@@ -93,25 +99,27 @@ int Main::createWindow() {
 	std::vector<glm::mat4> meshMatrices;
 	std::vector<GLuint> meshStartLoc;
 	std::vector<MaterialData> materialList;
-	GLuint texCount = 0;
+	//GLuint texCount = 0;
 
 	computeShader->Activate();
 	// combine all objects vertices and indices
 	GLuint indiceOffset = 0;
 	GLuint meshOffset = 0;
 	for (Model* model : Model::instances) {
-		// only binds first texture
-		Texture tex = model->getLoadedTex()[0];
-		glActiveTexture(GL_TEXTURE1 + texCount);
-		glBindTexture(GL_TEXTURE_2D, tex.ID);
-		glUniform1i(glGetUniformLocation(computeShader->ID, ("textures[" + std::to_string(texCount) + "]").c_str()), texCount + 1);
-		texCount++;
+
+		MaterialData materialData = model->getMaterialData()[0]; // only works with 1 material for now
+
+		materialData.baseColorTexture = materialData.hasBaseTexture ? glGetTextureHandleARB(materialData.baseColorTexture) : 0;
+		materialData.normalTexture = materialData.hasNoramlTexture ? glGetTextureHandleARB(materialData.normalTexture) : 0;
+		materialData.metallicRoughnessTexture = materialData.hasMetallicRoughnessTexture ? glGetTextureHandleARB(materialData.metallicRoughnessTexture) : 0;
+		glMakeTextureHandleResidentARB(materialData.baseColorTexture);
+		glMakeTextureHandleResidentARB(materialData.normalTexture);
+		glMakeTextureHandleResidentARB(materialData.metallicRoughnessTexture);
+		materialList.push_back(materialData);
 
 		std::vector<glm::mat4> _meshMatrices = model->getMatricesMeshes();
 		meshMatrices.insert(meshMatrices.end(), _meshMatrices.begin(), _meshMatrices.end());
 
-		std::vector<MaterialData> materialData = model->getMaterialData();
-		materialList.insert(materialList.end(), materialData.begin(), materialData.end());
 		for (Mesh& mesh : model->getMeshes()) {
 			vertexList.insert(vertexList.end(), mesh.vertices.begin(), mesh.vertices.end());
 			for (GLuint& indice : mesh.indices)
@@ -121,11 +129,6 @@ int Main::createWindow() {
 			meshOffset += mesh.indices.size();
 			indiceOffset += mesh.vertices.size();
 		}
-	}
-
-	for (int i = 0; i < indiceList.size(); i++) {
-		if (indiceList[i] >= 233)
-			std::cout << "pause!\n";
 	}
 
 	// setup SSBOs
@@ -193,8 +196,9 @@ void Main::Start() {
 	sphere = new Model("models/sphere/sphere.gltf");
 	cube = new Model("models/cube/cube.gltf");
 	sphere->setPos(glm::vec3(2, 2, 2));
-	sphereFlat = new Model("models/sphereFlat/sphere.gltf");
+	sphereFlat = new Model("models/sphere1/sphere.gltf");
 	sphereFlat->setPos(glm::vec3(2, 2, -2));
+
 }
 
 void Main::Update(float deltaTime) {
