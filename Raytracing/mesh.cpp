@@ -65,8 +65,6 @@ void Mesh::Draw
 	rot = glm::mat4_cast(rotation);
 	sca = glm::scale(sca, scale);
 
-	// std::cout << "translation: " << translation.x << ", " << translation.y << ", " << translation.z << ", stuff: " << glGetUniformLocation(shader.ID, "translation") << std::endl;
-
 	// Push the matrices to the vertex shader
 	glUniformMatrix4fv(glGetUniformLocation(shader->ID, "translation"), 1, GL_FALSE, glm::value_ptr(trans));
 	glUniformMatrix4fv(glGetUniformLocation(shader->ID, "rotation"), 1, GL_FALSE, glm::value_ptr(rot));

@@ -6,8 +6,5 @@
 
 class SSBO {
 public:
-	static void Bind(const void* data, GLuint size);
-
-private:
-	static inline GLuint bindSlot = 0;
+	static void Bind(const void* data, GLuint size, GLuint slot);
 };
