@@ -14,6 +14,7 @@ class Camera;
 class Model;
 class Shader;
 class ComputeShader;
+class Box;
 
 class Main {
 public:

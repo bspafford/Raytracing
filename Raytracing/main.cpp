@@ -3,6 +3,7 @@
 #include "model.h"
 #include "computeShader.h"
 #include "SSBO.h"
+#include "Box.h"
 
 int main() {
 	Main* _main = new Main();
@@ -40,12 +41,6 @@ void Main::renderQuad() {
 	glBindVertexArray(0);
 }
 
-struct MaterialGPU {
-	uint64_t baseColorHandle;
-	uint64_t metallicRoughnessHandle;
-	uint64_t normalHandle;
-};
-
 int Main::createWindow() {
 	glfwInit();
 
@@ -72,7 +67,6 @@ int Main::createWindow() {
 	glEnable(GL_CULL_FACE);
 	glCullFace(GL_BACK);
 	glFrontFace(GL_CW);
-
 	glEnable(GL_BLEND);
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
@@ -99,16 +93,33 @@ int Main::createWindow() {
 	std::vector<glm::mat4> meshMatrices;
 	std::vector<GLuint> meshStartLoc;
 	std::vector<MaterialData> materialList;
-	//GLuint texCount = 0;
+	sphereFlat->BVH();
+
+	// build box list for visual
+	for (int i = 0; i < sphereFlat->BVHList.size(); i++) {
+		GPUBoundingBox* boundingBox = sphereFlat->BVHList[i];
+		if (!boundingBox)
+			continue;
+		Box* box = new Box(boundingBox->minLoc, boundingBox->maxLoc);
+		if (i >= sphereFlat->BVHList.size() / 2) // second half of list, meaning its last node
+			box->setColor(glm::vec3(0, 1, 1));
+	}
+
+	// ptr to val list
+	std::vector<GPUBoundingBox*> boundingBoxesList = sphereFlat->BVHList;
+	std::vector<GPUBoundingBox> boundingBoxes;
+	boundingBoxes.reserve(boundingBoxesList.size());
+	for (GPUBoundingBox* box : boundingBoxesList) {
+		if (box) boundingBoxes.push_back(*box);
+		else boundingBoxes.push_back(GPUBoundingBox());
+	}
 
 	computeShader->Activate();
 	// combine all objects vertices and indices
 	GLuint indiceOffset = 0;
 	GLuint meshOffset = 0;
 	for (Model* model : Model::instances) {
-
 		MaterialData materialData = model->getMaterialData()[0]; // only works with 1 material for now
-
 		materialData.baseColorTexture = materialData.hasBaseTexture ? glGetTextureHandleARB(materialData.baseColorTexture) : 0;
 		materialData.normalTexture = materialData.hasNoramlTexture ? glGetTextureHandleARB(materialData.normalTexture) : 0;
 		materialData.metallicRoughnessTexture = materialData.hasMetallicRoughnessTexture ? glGetTextureHandleARB(materialData.metallicRoughnessTexture) : 0;
@@ -119,7 +130,6 @@ int Main::createWindow() {
 
 		std::vector<glm::mat4> _meshMatrices = model->getMatricesMeshes();
 		meshMatrices.insert(meshMatrices.end(), _meshMatrices.begin(), _meshMatrices.end());
-
 		for (Mesh& mesh : model->getMeshes()) {
 			vertexList.insert(vertexList.end(), mesh.vertices.begin(), mesh.vertices.end());
 			for (GLuint& indice : mesh.indices)
@@ -137,6 +147,7 @@ int Main::createWindow() {
 	SSBO::Bind(meshMatrices.data(), meshMatrices.size() * sizeof(glm::mat4));
 	SSBO::Bind(meshStartLoc.data(), meshStartLoc.size() * sizeof(GLuint));
 	SSBO::Bind(materialList.data(), materialList.size() * sizeof(MaterialData));
+	SSBO::Bind(boundingBoxes.data(), boundingBoxes.size() * sizeof(GPUBoundingBox));
 
 	auto lastTime = std::chrono::steady_clock::now();
 	float time = 0;
@@ -145,6 +156,7 @@ int Main::createWindow() {
 		float deltaTime = std::chrono::duration<float>(currentTime - lastTime).count();
 		lastTime = currentTime;
 		time += deltaTime;
+		//std::cout << "fps: " << 1.f / deltaTime << "\n"; // 300, 2000
 
 		glfwPollEvents();
 
@@ -193,20 +205,27 @@ void Main::Start() {
 	computeShader = new ComputeShader("shader.comp");
 
 	camera = new Camera(stuff::screenSize.x, stuff::screenSize.y, glm::vec3(0, 0, 5));
-	sphere = new Model("models/sphere/sphere.gltf");
-	cube = new Model("models/cube/cube.gltf");
-	sphere->setPos(glm::vec3(2, 2, 2));
+	//sphere = new Model("models/sphere/sphere.gltf");
+	/*cube = new Model("models/cube/cube.gltf");
+	sphere->setPos(glm::vec3(2, 2, 2));*/
 	sphereFlat = new Model("models/sphere1/sphere.gltf");
-	sphereFlat->setPos(glm::vec3(2, 2, -2));
-
+	//sphereFlat->setPos(glm::vec3(2, 2, -2));
 }
 
 void Main::Update(float deltaTime) {
+	shader->Activate();
 	camera->Update(deltaTime, window, shader);
 }
 
 void Main::Draw(Shader* shader) {
 	shader->Activate();
-	cube->Draw(shader, camera);
-	sphere->Draw(shader, camera);
+
+	shader->setMat4("model", glm::mat4(1));
+	shader->setMat4("translation", glm::mat4(1));
+	shader->setMat4("rotation", glm::mat4_cast(glm::quat(1, 0, 0, 0)));
+	shader->setMat4("scale", glm::mat4(1));
+
+	//for (Box* box : Box::instances)
+		//box->draw(shader);
+	sphereFlat->Draw(shader, camera);
 }

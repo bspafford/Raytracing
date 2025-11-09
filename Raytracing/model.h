@@ -28,6 +28,56 @@ struct MaterialData {
 	{};
 };
 
+struct Triangle {
+	glm::vec3 p1;
+	glm::vec3 p2;
+	glm::vec3 p3;
+	GLuint i1;
+	GLuint i2;
+	GLuint i3;
+
+	Triangle() {};
+	Triangle(glm::vec3 _p1, glm::vec3 _p2, glm::vec3 _p3, GLuint _i1, GLuint _i2, GLuint _i3) : p1(_p1), p2(_p2), p3(_p3), i1(_i1), i2(_i2), i3(_i3) {};
+};
+
+struct GPUBoundingBox {
+	GLuint hasChildren = true;
+	GLuint hasTriangle = false; glm::ivec2 pad1;
+	glm::ivec3 triangleIndices;	float pad2;
+	glm::vec3 minLoc;			float pad3;
+	glm::vec3 maxLoc;			float pad4;
+	glm::vec3 centroidLoc;		float pad5;
+
+	GPUBoundingBox() {
+		hasChildren = false;
+	}
+
+	GPUBoundingBox(GPUBoundingBox* left, GPUBoundingBox* right) {
+		glm::vec3 leftMin = left ? left->minLoc : glm::vec3(FLT_MAX);
+		glm::vec3 leftMax = left ? left->maxLoc : glm::vec3(-FLT_MAX);
+		glm::vec3 rightMin = right ? right->minLoc : glm::vec3(FLT_MAX);
+		glm::vec3 rightMax = right ? right->maxLoc : glm::vec3(-FLT_MAX);
+		minLoc = glm::min(leftMin, rightMin);
+		maxLoc = glm::max(leftMax, rightMax);
+		centroidLoc = (minLoc + maxLoc) * 0.5f;
+	}
+
+	GPUBoundingBox(Triangle* triangle) {
+		// find the min max, give triangle indice
+		minLoc = glm::vec3(FLT_MAX);
+		maxLoc = glm::vec3(-FLT_MAX);
+		triangleIndices = glm::vec3(triangle->i1, triangle->i2, triangle->i3);
+		hasTriangle = true;
+
+		std::vector<glm::vec3> pointsList = { triangle->p1, triangle->p2, triangle->p3 };
+		for (glm::vec3& p : pointsList) {
+			minLoc = glm::min(minLoc, p);
+			maxLoc = glm::max(maxLoc, p);
+		}
+		centroidLoc = (minLoc + maxLoc) * 0.5f;
+	}
+};
+
 class Model {
 public:
 	// Loads in a model from a file and stores tha information in 'data', 'JSON', and 'file'
@@ -44,6 +94,11 @@ public:
 	std::vector<glm::mat4> getMatricesMeshes();
 	std::vector<MaterialData> getMaterialData();
 	std::vector<Texture> getLoadedTex();
+
+	void BVH();
+	std::vector<GPUBoundingBox*> buildBVH(std::vector<GPUBoundingBox*> boundingBoxes);
+	std::vector<std::string> testBVH(std::vector<std::string> strings);
+	std::vector<GPUBoundingBox*> BVHList;
 
 	static inline std::vector<Model*> instances;
 

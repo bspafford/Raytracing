@@ -301,30 +301,6 @@ std::vector<Texture> Model::getTextures() {
 			metallicFactor,
 			roughnessFactor
 		));
-
-		// If the texture has been loaded, skip this
-		//if (!skip) {
-
-
-			/*
-			// Load diffuse texture
-			if (texPath.find("baseColor") != std::string::npos) {
-				Texture diffuse = Texture((fileDirectory + texPath).c_str(), "diffuse", loadedTex.size());
-				textures.push_back(diffuse);
-				loadedTex.push_back(diffuse);
-				loadedTexName.push_back(texPath);
-			}
-
-			// Load specular texture
-			else if (texPath.find("metallicRoughness") != std::string::npos) {
-				Texture specular = Texture((fileDirectory + texPath).c_str(), "specular", loadedTex.size());
-				textures.push_back(specular);
-				loadedTex.push_back(specular);
-				loadedTexName.push_back(texPath);
-			}
-			*/
-		//}
-
 	}
 
 	return textures;
@@ -420,4 +396,71 @@ std::vector<MaterialData> Model::getMaterialData() {
 
 std::vector<Texture> Model::getLoadedTex() {
 	return loadedTex;
+}
+
+std::vector<GPUBoundingBox*> Model::buildBVH(std::vector<GPUBoundingBox*> boundingBoxes) {
+	if (boundingBoxes.size() == 1) // 1 parent
+		return boundingBoxes;
+
+	// make cousins list
+	// prepend, return list
+	std::vector<GPUBoundingBox*> cousinsList;
+	for (int i = 0; i < boundingBoxes.size(); i += 2) {
+		GPUBoundingBox* left = boundingBoxes[i];
+		GPUBoundingBox* right = i + 1 < boundingBoxes.size() ? boundingBoxes[i + 1] : nullptr;
+		GPUBoundingBox* boundingBox = new GPUBoundingBox(left, right);
+		cousinsList.push_back(boundingBox);
+	}
+
+	std::vector<GPUBoundingBox*> parentsList = buildBVH(cousinsList);
+
+	parentsList.insert(parentsList.end(), boundingBoxes.begin(), boundingBoxes.end());
+	return parentsList;
+}
+
+std::vector<std::string> Model::testBVH(std::vector<std::string> strings) {
+	if (strings.size() == 1) // 1 parent
+		return strings;
+
+	// make cousins list
+	// prepend, return list
+	std::vector<std::string> cousinsList;
+	for (int i = 0; i < strings.size(); i += 2) {
+		std::string left = strings[i];
+		std::string right = i + 1 < strings.size() ? strings[i+1] : "N";
+		std::string string = left + "+" + right;
+		cousinsList.push_back(string);
+	}
+
+	std::vector<std::string> parentsList = testBVH(cousinsList);
+
+	parentsList.insert(parentsList.end(), strings.begin(), strings.end());
+	return parentsList;
+}
+
+void Model::BVH() {
+	// get primitive triangles
+	std::vector<GPUBoundingBox*> boundingBoxes;
+	for (Mesh& mesh : meshes) {
+		for (int i = 0; i < mesh.indices.size(); i += 3) {
+			glm::vec3 p1 = mesh.vertices[mesh.indices[i]].position;
+			glm::vec3 p2 = mesh.vertices[mesh.indices[i+1]].position;
+			glm::vec3 p3 = mesh.vertices[mesh.indices[i+2]].position;
+			Triangle* triangle = new Triangle(p1, p2, p3, i, i+1, i+2);
+			boundingBoxes.push_back(new GPUBoundingBox(triangle));
+		}
+	}
+
+	// add padding to make sure list is a log of 2
+	int padding = pow(2, ceil(glm::log2((float)boundingBoxes.size())));
+	boundingBoxes.resize(padding, nullptr);
+
+	std::sort(boundingBoxes.begin(), boundingBoxes.end(), [](const GPUBoundingBox* a, const GPUBoundingBox* b) {
+		if (!a && !b) return false;
+		if (!a) return false;
+		if (!b) return true;
+		return a->centroidLoc.x < b->centroidLoc.x;
+	});
+
+	BVHList = buildBVH(boundingBoxes);
 }

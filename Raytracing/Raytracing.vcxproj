@@ -164,6 +164,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="Box.cpp" />
     <ClCompile Include="camera.cpp" />
     <ClCompile Include="computeShader.cpp" />
     <ClCompile Include="EBO.cpp" />
@@ -179,6 +180,7 @@
     <ClCompile Include="VBO.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="Box.h" />
     <ClInclude Include="camera.h" />
     <ClInclude Include="computeShader.h" />
     <ClInclude Include="EBO.h" />
