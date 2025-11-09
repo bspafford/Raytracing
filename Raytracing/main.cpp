@@ -2,7 +2,6 @@
 #include "Camera.h"
 #include "model.h"
 #include "computeShader.h"
-#include "SSBO.h"
 #include "Box.h"
 
 int main() {
@@ -88,66 +87,18 @@ int Main::createWindow() {
 
 	setupQuad();
 
-	std::vector<Vertex> vertexList;
-	std::vector<GLuint> indiceList;
-	std::vector<glm::mat4> meshMatrices;
-	std::vector<GLuint> meshStartLoc;
-	std::vector<MaterialData> materialList;
-	sphereFlat->BVH();
+	computeShader->Activate();
+	std::vector<BoundingBox> BVHList = Model::BVH();
 
 	// build box list for visual
-	for (int i = 0; i < sphereFlat->BVHList.size(); i++) {
-		GPUBoundingBox* boundingBox = sphereFlat->BVHList[i];
-		if (!boundingBox)
+	for (int i = 0; i < BVHList.size(); i++) {
+		BoundingBox& boundingBox = BVHList[i];
+		if (!boundingBox.isValid)
 			continue;
-		Box* box = new Box(boundingBox->minLoc, boundingBox->maxLoc);
-		if (i >= sphereFlat->BVHList.size() / 2) // second half of list, meaning its last node
+		Box* box = new Box(boundingBox.minLoc, boundingBox.maxLoc);
+		if (i >= BVHList.size() / 2) // second half of list, meaning its last node
 			box->setColor(glm::vec3(0, 1, 1));
 	}
-
-	// ptr to val list
-	std::vector<GPUBoundingBox*> boundingBoxesList = sphereFlat->BVHList;
-	std::vector<GPUBoundingBox> boundingBoxes;
-	boundingBoxes.reserve(boundingBoxesList.size());
-	for (GPUBoundingBox* box : boundingBoxesList) {
-		if (box) boundingBoxes.push_back(*box);
-		else boundingBoxes.push_back(GPUBoundingBox());
-	}
-
-	computeShader->Activate();
-	// combine all objects vertices and indices
-	GLuint indiceOffset = 0;
-	GLuint meshOffset = 0;
-	for (Model* model : Model::instances) {
-		MaterialData materialData = model->getMaterialData()[0]; // only works with 1 material for now
-		materialData.baseColorTexture = materialData.hasBaseTexture ? glGetTextureHandleARB(materialData.baseColorTexture) : 0;
-		materialData.normalTexture = materialData.hasNoramlTexture ? glGetTextureHandleARB(materialData.normalTexture) : 0;
-		materialData.metallicRoughnessTexture = materialData.hasMetallicRoughnessTexture ? glGetTextureHandleARB(materialData.metallicRoughnessTexture) : 0;
-		glMakeTextureHandleResidentARB(materialData.baseColorTexture);
-		glMakeTextureHandleResidentARB(materialData.normalTexture);
-		glMakeTextureHandleResidentARB(materialData.metallicRoughnessTexture);
-		materialList.push_back(materialData);
-
-		std::vector<glm::mat4> _meshMatrices = model->getMatricesMeshes();
-		meshMatrices.insert(meshMatrices.end(), _meshMatrices.begin(), _meshMatrices.end());
-		for (Mesh& mesh : model->getMeshes()) {
-			vertexList.insert(vertexList.end(), mesh.vertices.begin(), mesh.vertices.end());
-			for (GLuint& indice : mesh.indices)
-				indiceList.push_back(indice + indiceOffset);
-
-			meshStartLoc.push_back(meshOffset);
-			meshOffset += mesh.indices.size();
-			indiceOffset += mesh.vertices.size();
-		}
-	}
-
-	// setup SSBOs
-	SSBO::Bind(vertexList.data(), vertexList.size() * sizeof(Vertex));
-	SSBO::Bind(indiceList.data(), indiceList.size() * sizeof(GLuint));
-	SSBO::Bind(meshMatrices.data(), meshMatrices.size() * sizeof(glm::mat4));
-	SSBO::Bind(meshStartLoc.data(), meshStartLoc.size() * sizeof(GLuint));
-	SSBO::Bind(materialList.data(), materialList.size() * sizeof(MaterialData));
-	SSBO::Bind(boundingBoxes.data(), boundingBoxes.size() * sizeof(GPUBoundingBox));
 
 	auto lastTime = std::chrono::steady_clock::now();
 	float time = 0;
@@ -156,7 +107,7 @@ int Main::createWindow() {
 		float deltaTime = std::chrono::duration<float>(currentTime - lastTime).count();
 		lastTime = currentTime;
 		time += deltaTime;
-		//std::cout << "fps: " << 1.f / deltaTime << "\n"; // 300, 2000
+		std::cout << "fps: " << 1.f / deltaTime << "\n"; // 300, 2000
 
 		glfwPollEvents();
 
@@ -206,10 +157,9 @@ void Main::Start() {
 
 	camera = new Camera(stuff::screenSize.x, stuff::screenSize.y, glm::vec3(0, 0, 5));
 	//sphere = new Model("models/sphere/sphere.gltf");
-	/*cube = new Model("models/cube/cube.gltf");
-	sphere->setPos(glm::vec3(2, 2, 2));*/
-	sphereFlat = new Model("models/sphere1/sphere.gltf");
-	//sphereFlat->setPos(glm::vec3(2, 2, -2));
+	sphere = new Model("models/bunny/46k.gltf");
+	//cube = new Model("models/cube/cube.gltf");
+	//sphereFlat = new Model("models/sphere1/sphere.gltf");
 }
 
 void Main::Update(float deltaTime) {
@@ -227,5 +177,6 @@ void Main::Draw(Shader* shader) {
 
 	//for (Box* box : Box::instances)
 		//box->draw(shader);
-	sphereFlat->Draw(shader, camera);
+	for (Model* model : Model::instances)
+		model->Draw(shader, camera);
 }

@@ -1,6 +1,6 @@
 #include "SSBO.h"
 
-void SSBO::Bind(const void* data, GLuint size) {
+void SSBO::Bind(const void* data, GLuint size, GLuint slot) {
 	GLuint ID;
 	// create
 	glGenBuffers(1, &ID);
@@ -9,9 +9,7 @@ void SSBO::Bind(const void* data, GLuint size) {
 	// allocate and upload data
 	glBufferData(GL_SHADER_STORAGE_BUFFER, size, data, GL_STATIC_DRAW);
 	// bind ssbo to binding point
-	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, bindSlot, ID);
+	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, slot, ID);
 	// unbind
 	glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
-
-	bindSlot++;
 }

@@ -50,9 +50,10 @@
 					"attributes":{
 						"POSITION":0,
 						"NORMAL":1,
-						"TEXCOORD_0":2
+						"TEXCOORD_0":2,
+						"TANGENT":3
 					},
-					"indices":3,
+					"indices":4,
 					"material":0
 				}
 			]
@@ -102,6 +103,12 @@
 		},
 		{
 			"bufferView":3,
+			"componentType":5126,
+			"count":208353,
+			"type":"VEC4"
+		},
+		{
+			"bufferView":4,
 			"componentType":5125,
 			"count":208353,
 			"type":"SCALAR"
@@ -128,8 +135,14 @@
 		},
 		{
 			"buffer":0,
-			"byteLength":833412,
+			"byteLength":3333648,
 			"byteOffset":6667296,
+			"target":34962
+		},
+		{
+			"buffer":0,
+			"byteLength":833412,
+			"byteOffset":10000944,
 			"target":34963
 		}
 	],
@@ -141,7 +154,7 @@
 	],
 	"buffers":[
 		{
-			"byteLength":7500708,
+			"byteLength":10834356,
 			"uri":"scene.bin"
 		}
 	]
