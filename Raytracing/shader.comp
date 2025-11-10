@@ -16,14 +16,14 @@ struct Vertex {
 };
 
 struct MaterialData {
-	sampler2D baseColorTexture;
-	sampler2D normalTexture;
-	sampler2D metallicRoughnessTexture;
+	sampler2D baseColorTexture;				vec2 pad1;
+	sampler2D normalTexture;				vec2 pad2;
+	sampler2D metallicRoughnessTexture;		vec2 pad3;
 	int hasBaseTexture;
 	int hasNormalTexture;
 	int hasMetallicRoughnessTexture;
 	float metallicFactor;
-	float roughnessFactor;	vec3 pad1;
+	float roughnessFactor;
 };
 
 struct GPUBoundingBox {
@@ -207,7 +207,7 @@ void main() {
 	vec4 color = vec4(0.f);
 	vec3 startPos = camPos;
 	vec3 startDir = rayDir;
-	int maxBounces = 1;//5;
+	int maxBounces = 5;
 	for (int bounce = 0; bounce < maxBounces; ++bounce) {
 		Hit hit;
 		if (lineCast(startPos, startDir, hit, false, pixel)) {
@@ -237,12 +237,12 @@ void main() {
 			MaterialData material = materialList[hit.triangle.meshIndex.x];
 			float metallicFactor;
 			float roughnessFactor;
-			if (material.hasMetallicRoughnessTexture == 1) {
+			if (material.hasMetallicRoughnessTexture.x == 1) {
 				metallicFactor = texture(material.metallicRoughnessTexture, hitUV).r;
 				roughnessFactor = texture(material.metallicRoughnessTexture, hitUV).g;
 			} else {
-				metallicFactor = material.metallicFactor;
-				roughnessFactor = material.roughnessFactor;
+				metallicFactor = material.metallicFactor.x;
+				roughnessFactor = material.roughnessFactor.x;
 			}
 
 			Hit shadowHit;
@@ -259,7 +259,7 @@ void main() {
 				if (dot(startDir, hitNormal) > 0.f)
 					hitNormal = -hitNormal; // ensure normal opposes the ray
 
-				if (material.hasNormalTexture == 1) {
+				if (material.hasNormalTexture.x == 1) {
 					vec3 tangent = normalize(vertices[i1].tangent.xyz * bary.x + vertices[i2].tangent.xyz * bary.y + vertices[i3].tangent.xyz * bary.z);
 					float handedness = vertices[i1].tangent.w * bary.x + vertices[i2].tangent.w * bary.y + vertices[i3].tangent.w * bary.z;
 
@@ -275,7 +275,7 @@ void main() {
 				} else
 					startDir = normalize(reflect(startDir, hitNormal));
 
-			} else if (metallicFactor == 0) { // light doesn't bounce, so stop looking
+			} else { // light doesn't bounce, so stop looking
 				break;
 			}
 		} else { // didn't hit anything

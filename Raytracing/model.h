@@ -6,14 +6,14 @@
 using json = nlohmann::json;
 
 struct MaterialData {
-	GLuint64 baseColorTexture = -1;
-	GLuint64 normalTexture = -1;
-	GLuint64 metallicRoughnessTexture = -1;
+	GLuint64 baseColorTexture = -1;				glm::vec2 pad1;
+	GLuint64 normalTexture = -1;				glm::vec2 pad2;
+	GLuint64 metallicRoughnessTexture = -1;		glm::vec2 pad3;
 	int hasBaseTexture = 0;
 	int hasNormalTexture = 0;
 	int hasMetallicRoughnessTexture = 0;
 	float metallicFactor = 1.f;
-	float roughnessFactor = 1.f;	glm::vec3 pad1;
+	float roughnessFactor = 1.f;
 
 	MaterialData(GLuint64 _baseColorTexture, GLuint64 _normalTexture, GLuint64 _metallicRoughnessTexture, int _hasBaseTexture, int _hasNormalTexture, int _hasMetallicRoughnessTexture, float _metallicFactor, float _roughnessFactor) :
 		baseColorTexture(_baseColorTexture),
@@ -23,7 +23,7 @@ struct MaterialData {
 		hasNormalTexture(_hasNormalTexture),
 		hasMetallicRoughnessTexture(_hasMetallicRoughnessTexture),
 		metallicFactor(_metallicFactor),
-		roughnessFactor(_roughnessFactor) 
+		roughnessFactor(_roughnessFactor)
 	{};
 };
 
