@@ -10,17 +10,17 @@ struct MaterialData {
 	GLuint64 normalTexture = -1;
 	GLuint64 metallicRoughnessTexture = -1;
 	int hasBaseTexture = 0;
-	int hasNoramlTexture = 0;
+	int hasNormalTexture = 0;
 	int hasMetallicRoughnessTexture = 0;
 	float metallicFactor = 1.f;
-	float roughnessFactor = 1.f;
+	float roughnessFactor = 1.f;	glm::vec3 pad1;
 
-	MaterialData(GLuint64 _baseColorTexture, GLuint64 _normalTexture, GLuint64 _metallicRoughnessTexture, int _hasBaseTexture, int _hasNoramlTexture, int _hasMetallicRoughnessTexture, float _metallicFactor, float _roughnessFactor) :
+	MaterialData(GLuint64 _baseColorTexture, GLuint64 _normalTexture, GLuint64 _metallicRoughnessTexture, int _hasBaseTexture, int _hasNormalTexture, int _hasMetallicRoughnessTexture, float _metallicFactor, float _roughnessFactor) :
 		baseColorTexture(_baseColorTexture),
 		normalTexture(_normalTexture),
 		metallicRoughnessTexture(_metallicRoughnessTexture),
 		hasBaseTexture(_hasBaseTexture),
-		hasNoramlTexture(_hasNoramlTexture),
+		hasNormalTexture(_hasNormalTexture),
 		hasMetallicRoughnessTexture(_hasMetallicRoughnessTexture),
 		metallicFactor(_metallicFactor),
 		roughnessFactor(_roughnessFactor) 
@@ -28,53 +28,98 @@ struct MaterialData {
 };
 
 struct Triangle {
-	glm::vec3 p1;
-	glm::vec3 p2;
-	glm::vec3 p3;
-	GLuint indiceStartIndex;
-	GLuint meshIndex;
+	glm::uvec3 indices;		float pad2;
+	glm::vec3 p1;			float pad3;
+	glm::vec3 p2;			float pad4;
+	glm::vec3 p3;			float pad5;
+	glm::vec3 centroidLoc;	float pad6;
+	glm::uvec4 meshIndex;
 
-	Triangle() {};
-	Triangle(glm::vec3 _p1, glm::vec3 _p2, glm::vec3 _p3, GLuint _i1, GLuint _meshIndex) : p1(_p1), p2(_p2), p3(_p3), indiceStartIndex(_i1), meshIndex(_meshIndex) {};
+	Triangle(glm::vec3 _p1, glm::vec3 _p2, glm::vec3 _p3, glm::uvec3 _indices, GLuint _meshIndex) : p1(_p1), p2(_p2), p3(_p3), indices(_indices), meshIndex(glm::uvec4(_meshIndex)) {
+		centroidLoc = (p1 + p2 + p3) / 3.f;
+	};
+
+	static void computeBounds(std::vector<Triangle*>& list, int start, int end, glm::vec3& min, glm::vec3& max) {
+		min = glm::vec3(FLT_MAX);
+		max = glm::vec3(-FLT_MAX);
+		for (int i = start; i < end; i++) {
+			glm::vec3 points[] = {list[i]->p1, list[i]->p2, list[i]->p3};
+			for (int p = 0; p < 3; p++) {
+				min = glm::min(points[p], min);
+				max = glm::max(points[p], max);
+			}
+		}
+	}
 };
 
 struct BoundingBox {
-	GLuint isValid = true;
-	GLuint hasTriangle = false;
-	GLuint triangleIndiceStartIndex;
-	GLuint triangleMeshIndex;
-	glm::vec3 minLoc;					float pad2;
-	glm::vec3 maxLoc;					float pad3;
-	glm::vec3 centroidLoc;				float pad4;
+	BoundingBox* left = nullptr;
+	BoundingBox* right = nullptr;
+	std::vector<Triangle*> triangles;
 
-	BoundingBox() {
-		isValid = false;
-	}
+	glm::vec3 minLoc;
+	glm::vec3 maxLoc;
+	glm::vec3 centroidLoc;
 
-	BoundingBox(BoundingBox left, BoundingBox right) {
-		glm::vec3 leftMin = left.isValid ? left.minLoc : glm::vec3(FLT_MAX);
-		glm::vec3 leftMax = left.isValid ? left.maxLoc : glm::vec3(-FLT_MAX);
-		glm::vec3 rightMin = right.isValid ? right.minLoc : glm::vec3(FLT_MAX);
-		glm::vec3 rightMax = right.isValid ? right.maxLoc : glm::vec3(-FLT_MAX);
+	BoundingBox(BoundingBox* left, BoundingBox* right) {
+		this->left = left;
+		this->right = right;
+
+		glm::vec3 leftMin = left ? left->minLoc : glm::vec3(FLT_MAX);
+		glm::vec3 leftMax = left ? left->maxLoc : glm::vec3(-FLT_MAX);
+		glm::vec3 rightMin = right ? right->minLoc : glm::vec3(FLT_MAX);
+		glm::vec3 rightMax = right ? right->maxLoc : glm::vec3(-FLT_MAX);
 		minLoc = glm::min(leftMin, rightMin);
 		maxLoc = glm::max(leftMax, rightMax);
 		centroidLoc = (minLoc + maxLoc) * 0.5f;
 	}
 
-	BoundingBox(Triangle* triangle) {
+	BoundingBox(std::vector<Triangle*> triangles) {
+		this->triangles = triangles;
 		// find the min max, give triangle indice
 		minLoc = glm::vec3(FLT_MAX);
 		maxLoc = glm::vec3(-FLT_MAX);
-		triangleIndiceStartIndex = triangle->indiceStartIndex;
-		triangleMeshIndex = triangle->meshIndex;
-		hasTriangle = true;
 
-		std::vector<glm::vec3> pointsList = { triangle->p1, triangle->p2, triangle->p3 };
-		for (glm::vec3& p : pointsList) {
-			minLoc = glm::min(minLoc, p);
-			maxLoc = glm::max(maxLoc, p);
+		for (Triangle* triangle : triangles) {
+			std::vector<glm::vec3> pointsList = { triangle->p1, triangle->p2, triangle->p3 };
+			for (glm::vec3& p : pointsList) {
+				minLoc = glm::min(minLoc, p);
+				maxLoc = glm::max(maxLoc, p);
+			}
 		}
 		centroidLoc = (minLoc + maxLoc) * 0.5f;
+	}
+
+	float calcSurfaceArea() {
+		glm::vec3 e = maxLoc - minLoc;
+		return 2.f * (e.x * e.y + e.y * e.z + e.z * e.x);
+	}
+
+	static float calcSurfaceArea(glm::vec3 min, glm::vec3 max) {
+		glm::vec3 e = max - min;
+		return 2.f * (e.x * e.y + e.y * e.z + e.z * e.x);
+	}
+
+	static void computeBounds(std::vector<BoundingBox>& list, int start, int end, glm::vec3& min, glm::vec3& max) {
+		min = glm::vec3(FLT_MAX);
+		max = glm::vec3(-FLT_MAX);
+		for (int i = start; i < end; i++) {
+			min = glm::min(list[i].minLoc, min);
+			max = glm::max(list[i].maxLoc, max);
+		}
+	}
+};
+
+struct GPUBoundingBox {
+	glm::vec3 minLoc;		float pad2;
+	glm::vec3 maxLoc;		float pad3;
+	glm::ivec4 children = glm::ivec4(-1); // index of children
+	glm::ivec4 isLeaf = glm::ivec4(0);
+
+	GPUBoundingBox(BoundingBox* box) {
+		minLoc = glm::min(box->left ? box->left->minLoc : glm::vec3(FLT_MAX), box->right ? box->right->minLoc : glm::vec3(FLT_MAX));
+		maxLoc = glm::max(box->left ? box->left->maxLoc : glm::vec3(-FLT_MAX), box->right ? box->right->maxLoc : glm::vec3(-FLT_MAX));
+		isLeaf = glm::ivec4(!box->left && !box->right);
 	}
 };
 
@@ -95,8 +140,9 @@ public:
 	std::vector<MaterialData> getMaterialData();
 	std::vector<Texture> getLoadedTex();
 
-	static std::vector<BoundingBox> BVH();
-	static std::vector<BoundingBox> buildBVH(std::vector<BoundingBox> boundingBoxes);
+	static std::vector<GPUBoundingBox> BVH();
+	static BoundingBox* buildBVH(std::vector<Triangle*> triangles);
+	static GLuint convertToGPU(BoundingBox* box, std::vector<GPUBoundingBox>& outList, std::unordered_map<Triangle*, int>& triangleMap);
 
 	static inline std::vector<Model*> instances;
 

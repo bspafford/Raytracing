@@ -7,14 +7,10 @@
 
 // Structure to standardize the vertices used in the meshes
 struct Vertex {
-	glm::vec3 position;
-	float pad1 = 0;
-	glm::vec3 normal;
-	float pad2 = 0;
-	glm::vec3 color;
-	float pad3 = 0;
-	glm::vec2 texUV;
-	glm::vec2 pad4 = glm::vec2(0);
+	glm::vec3 position;	float pad1;
+	glm::vec3 normal;	float pad2;
+	glm::vec3 color;	float pad3;
+	glm::vec2 texUV;	glm::vec2 pad4;
 	glm::vec4 tangent;
 
 	Vertex(glm::vec3 _position, glm::vec3 _normal, glm::vec3 _color, glm::vec2 _texUV, glm::vec4 _tangent) : position(_position), normal(_normal), color(_color), texUV(_texUV), tangent(_tangent) {};

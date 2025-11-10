@@ -23,26 +23,31 @@ struct MaterialData {
 	int hasNormalTexture;
 	int hasMetallicRoughnessTexture;
 	float metallicFactor;
-	float roughnessFactor;
+	float roughnessFactor;	vec3 pad1;
 };
 
-struct BoundingBox {
-	uint isValid;
-	uint hasTriangle;
-	uint triangleStarIndiceIndex;
-	uint triangleMeshIndex;
-	vec3 minLoc;					float pad1;
-	vec3 maxLoc;					float pad2;
-	vec3 centroidLoc;				float pad3;
+struct GPUBoundingBox {
+	vec3 minLoc;	float pad2;
+	vec3 maxLoc;	float pad3;
+	ivec4 children;
+	ivec4 isLeaf;
+};
+
+struct Triangle {
+	uvec3 indices;		float pad2;
+	vec3 p1;			float pad3;
+	vec3 p2;			float pad4;
+	vec3 p3;			float pad5;
+	vec3 centroidLoc;	float pad6;
+	uvec4 meshIndex;
 };
 
 // variables
 layout(std430, binding = 0) buffer VertexBuffer { Vertex vertices[]; };
-layout(std430, binding = 1) buffer Indices { uint indices[]; };
-layout(std430, binding = 2) buffer MeshProj { mat4 meshProj[]; };
-layout(std430, binding = 3) buffer MeshStartLoc { uint meshStartLoc[]; };
-layout(std430, binding = 4) buffer MaterialList { MaterialData materialList[]; };
-layout(std430, binding = 5) buffer GPUBoundingList { BoundingBox boundingBoxList[]; };
+layout(std430, binding = 1) buffer MeshProj { mat4 meshProj[]; };
+layout(std430, binding = 2) buffer MaterialList { MaterialData materialList[]; };
+layout(std430, binding = 3) buffer GPUBoundingBoxList { GPUBoundingBox boundingBoxList[]; };
+layout(std430, binding = 4) buffer Triangles { Triangle triangleList[]; };
 
 uniform mat4 projection;
 uniform mat4 invProj;
@@ -79,18 +84,14 @@ bool RayIntersectsTriangle(vec3 orig, vec3 dir, vec3 v0, vec3 v1, vec3 v2, out v
 
 struct Hit {
 	vec3 hitLoc;
-	uvec3 indices;
-	vec3 p1;
-	vec3 p2;
-	vec3 p3;
-	uint meshIndex;
+	Triangle triangle;
 };
 
 vec3 barycentric(Hit hit) {
 	vec3 p = hit.hitLoc;
-	vec3 a = hit.p1;
-	vec3 b = hit.p2;
-	vec3 c = hit.p3;
+	vec3 a = hit.triangle.p1;
+	vec3 b = hit.triangle.p2;
+	vec3 c = hit.triangle.p3;
 	
     vec3 v0 = b - a;
     vec3 v1 = c - a;
@@ -130,60 +131,54 @@ bool intersectAABB(const vec3 rayOrigin, const vec3 rayDir, const vec3 aabbMin, 
     return tExit >= tEnter && tExit >= 0.0f;
 }
 
-bool lineCast(vec3 startPos, vec3 startDir, out Hit hit, bool breakOnHit = false) {
+bool lineCast(vec3 startPos, vec3 startDir, out Hit hit, bool breakOnHit = false, ivec2 pixel = ivec2(0, 0)) {
 	bool didHit = false;
 	float closestDist = 3.40282347e+38;
 	uint stack[64];
 	uint stackPtr = 0;
 	stack[stackPtr++] = 0;
+
 	while (stackPtr > 0) {
 		uint nodeIndex = stack[--stackPtr];
-		BoundingBox node = boundingBoxList[nodeIndex];
-
-		if (node.isValid == 0)
-			continue;
+		GPUBoundingBox node = boundingBoxList[nodeIndex];
 
 		// test left and right for AABB intersection
 		if (!intersectAABB(startPos, startDir, node.minLoc, node.maxLoc))
 			continue;
-
+		
 		// test triangle in leaf
-		if (node.hasTriangle > 0) { // at leaf node
-			uint meshIndex = node.triangleMeshIndex;
+		if (node.isLeaf == 1) { // at leaf node
 
-			uint i1 = indices[node.triangleStarIndiceIndex+0];
-			uint i2 = indices[node.triangleStarIndiceIndex+1];
-			uint i3 = indices[node.triangleStarIndiceIndex+2];
-			vec3 p1 = vec3(meshProj[meshIndex] * vec4(vertices[i1].position, 1.f));
-			vec3 p2 = vec3(meshProj[meshIndex] * vec4(vertices[i2].position, 1.f));
-			vec3 p3 = vec3(meshProj[meshIndex] * vec4(vertices[i3].position, 1.f));
+			for (int i = 0; i < 4; i++) {
+				if (node.children[i] == -1)
+					continue;
 
-			vec3 _hitLoc;
-			if (RayIntersectsTriangle(startPos, startDir, p1, p2, p3, _hitLoc)) {
-				float newDist = distance(startPos, _hitLoc);
-				if (newDist < closestDist) {
-					didHit = true;
-					hit.hitLoc = _hitLoc;
-					closestDist = newDist;
+				Triangle triangle = triangleList[node.children[i]];
 
-					hit.p1 = p1;
-					hit.p2 = p2;
-					hit.p3 = p3;
+				vec3 p1 = vec3(meshProj[triangle.meshIndex.x] * vec4(vertices[triangle.indices.x].position, 1.f));
+				vec3 p2 = vec3(meshProj[triangle.meshIndex.x] * vec4(vertices[triangle.indices.y].position, 1.f));
+				vec3 p3 = vec3(meshProj[triangle.meshIndex.x] * vec4(vertices[triangle.indices.z].position, 1.f));
 
-					hit.indices.x = i1;
-					hit.indices.y = i2;
-					hit.indices.z = i3;
+				vec3 _hitLoc;
+				if (RayIntersectsTriangle(startPos, startDir, p1, p2, p3, _hitLoc)) {
+					float newDist = distance(startPos, _hitLoc);
+					if (newDist < closestDist) {
+						didHit = true;
+						hit.hitLoc = _hitLoc;
+						closestDist = newDist;
 
-					hit.meshIndex = meshIndex;
+						hit.triangle = triangle;
 
-					if (breakOnHit)
-						return true;
+						if (breakOnHit)
+							return true;
+					}
 				}
 			}
-			continue;
 		} else { // hit bounding box, not at leaf node
-			stack[stackPtr++] = nodeIndex * 2 + 1; // left child;
-			stack[stackPtr++] = nodeIndex * 2 + 2; // right child;
+			if (node.children.x != -1)
+				stack[stackPtr++] = node.children.x; // left child;
+			if (node.children.y != -1)
+				stack[stackPtr++] = node.children.y; // right child;
 		}
 	}
 
@@ -192,6 +187,7 @@ bool lineCast(vec3 startPos, vec3 startDir, out Hit hit, bool breakOnHit = false
 
 void main() {
     ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
+
     ivec2 size = imageSize(imgOutput);
 
 	if (pixel.x >= size.x || pixel.y >= size.y) return;
@@ -214,16 +210,16 @@ void main() {
 	int maxBounces = 1;//5;
 	for (int bounce = 0; bounce < maxBounces; ++bounce) {
 		Hit hit;
-		if (lineCast(startPos, startDir, hit)) {
-			uint i1 = hit.indices.x;
-			uint i2 = hit.indices.y;
-			uint i3 = hit.indices.z;
+		if (lineCast(startPos, startDir, hit, false, pixel)) {
+			uint i1 = hit.triangle.indices.x;
+			uint i2 = hit.triangle.indices.y;
+			uint i3 = hit.triangle.indices.z;
 
 			vec3 bary = barycentric(hit);
 
-			vec3 n1 = vec3(meshProj[hit.meshIndex] * vec4(vertices[i1].normal, 0.f));
-			vec3 n2 = vec3(meshProj[hit.meshIndex] * vec4(vertices[i2].normal, 0.f));
-			vec3 n3 = vec3(meshProj[hit.meshIndex] * vec4(vertices[i3].normal, 0.f));
+			vec3 n1 = vec3(meshProj[hit.triangle.meshIndex.x] * vec4(vertices[i1].normal, 0.f));
+			vec3 n2 = vec3(meshProj[hit.triangle.meshIndex.x] * vec4(vertices[i2].normal, 0.f));
+			vec3 n3 = vec3(meshProj[hit.triangle.meshIndex.x] * vec4(vertices[i3].normal, 0.f));
 			vec3 hitNormal = normalize(n1 * bary.x + n2 * bary.y + n3 * bary.z);
 
 			vec3 c1 = vertices[i1].color;
@@ -238,7 +234,7 @@ void main() {
 
 			startPos = hit.hitLoc + (hitNormal * 1e-5);
 			
-			MaterialData material = materialList[hit.meshIndex];
+			MaterialData material = materialList[hit.triangle.meshIndex.x];
 			float metallicFactor;
 			float roughnessFactor;
 			if (material.hasMetallicRoughnessTexture == 1) {
@@ -287,5 +283,5 @@ void main() {
 		}
 	}
 
-    imageStore(imgOutput, pixel, color);
+	imageStore(imgOutput, pixel, color);
 }

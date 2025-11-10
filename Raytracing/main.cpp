@@ -88,15 +88,13 @@ int Main::createWindow() {
 	setupQuad();
 
 	computeShader->Activate();
-	std::vector<BoundingBox> BVHList = Model::BVH();
+	std::vector<GPUBoundingBox> BVHList = Model::BVH();
 
 	// build box list for visual
 	for (int i = 0; i < BVHList.size(); i++) {
-		BoundingBox& boundingBox = BVHList[i];
-		if (!boundingBox.isValid)
-			continue;
+		GPUBoundingBox& boundingBox = BVHList[i];
 		Box* box = new Box(boundingBox.minLoc, boundingBox.maxLoc);
-		if (i >= BVHList.size() / 2) // second half of list, meaning its last node
+		if (boundingBox.isLeaf.x) // second half of list, meaning its last node
 			box->setColor(glm::vec3(0, 1, 1));
 	}
 
@@ -107,7 +105,7 @@ int Main::createWindow() {
 		float deltaTime = std::chrono::duration<float>(currentTime - lastTime).count();
 		lastTime = currentTime;
 		time += deltaTime;
-		std::cout << "fps: " << 1.f / deltaTime << "\n"; // 300, 2000
+		//std::cout << "fps: " << 1.f / deltaTime << "\n"; // 300, 2000, 3000
 
 		glfwPollEvents();
 
@@ -125,7 +123,7 @@ int Main::createWindow() {
 			computeShader->setFloat("fov", camera->FOVdeg);
 			//computeShader->setVec3("lightDir", glm::normalize(glm::vec3(cos(time), 0.75, sin(time))));
 			computeShader->setVec3("lightDir", glm::normalize(glm::vec3(1.f, 0.75f, -0.5f)));
-
+			
 			glDispatchCompute((TEXTURE_WIDTH + 15) / 16, (TEXTURE_HEIGHT + 15) / 16, 1); // simple strat to make somethiung like width = 500 into 512 which is divisible by 16
 			// make sure writing to image has finished before read
 			glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
@@ -135,12 +133,18 @@ int Main::createWindow() {
 			glActiveTexture(GL_TEXTURE0);
 			glBindTexture(GL_TEXTURE_2D, texture);
 			renderQuad();
+
+			//shader->Activate();
+			//Draw(shader);
 		} else {
 			glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-			shader->Activate();
 			shader->setVec3("lightDir", glm::normalize(glm::vec3(cos(time), 0.75, sin(time))));
 			Draw(shader);
 		}
+
+		GLenum error;
+		while ((error = glGetError()) != GL_NO_ERROR)
+			std::cout << "OpenGL Error: " << error << std::endl;
 
 		glfwSwapBuffers(window);
 	}
@@ -157,9 +161,9 @@ void Main::Start() {
 
 	camera = new Camera(stuff::screenSize.x, stuff::screenSize.y, glm::vec3(0, 0, 5));
 	//sphere = new Model("models/sphere/sphere.gltf");
-	sphere = new Model("models/bunny/46k.gltf");
+	//sphere = new Model("models/bunny/3k.gltf");
 	//cube = new Model("models/cube/cube.gltf");
-	//sphereFlat = new Model("models/sphere1/sphere.gltf");
+	sphereFlat = new Model("models/sphere1/sphere.gltf");
 }
 
 void Main::Update(float deltaTime) {
@@ -175,8 +179,8 @@ void Main::Draw(Shader* shader) {
 	shader->setMat4("rotation", glm::mat4_cast(glm::quat(1, 0, 0, 0)));
 	shader->setMat4("scale", glm::mat4(1));
 
-	//for (Box* box : Box::instances)
-		//box->draw(shader);
-	for (Model* model : Model::instances)
-		model->Draw(shader, camera);
+	for (Box* box : Box::instances)
+		box->draw(shader);
+	//for (Model* model : Model::instances)
+		//model->Draw(shader, camera);
 }
