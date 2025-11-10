@@ -1,9 +1,6 @@
 #include"Model.h"
 #include "SSBO.h"
 
-#define GLM_FORCE_DEFAULT_ALIGNED_GENTYPES
-#define GLM_FORCE_STD430
-
 Model::Model(const char* file) {
 	instances.push_back(this);
 
@@ -486,15 +483,18 @@ std::vector<GPUBoundingBox> Model::BVH() {
 	for (int m = 0; m < instances.size(); m++) {
 		Model* model = instances[m];
 		MaterialData materialData = model->getMaterialData()[0]; // only works with 1 material for now
-		materialData.baseColorTexture = materialData.hasBaseTexture ? glGetTextureHandleARB(materialData.baseColorTexture) : 0;
-		materialData.normalTexture = materialData.hasNormalTexture ? glGetTextureHandleARB(materialData.normalTexture) : 0;
-		materialData.metallicRoughnessTexture = materialData.hasMetallicRoughnessTexture ? glGetTextureHandleARB(materialData.metallicRoughnessTexture) : 0;
-		if (materialData.hasBaseTexture)
+		if (materialData.hasBaseTexture) {
+			materialData.baseColorTexture = glGetTextureHandleARB(materialData.baseColorTexture);
 			glMakeTextureHandleResidentARB(materialData.baseColorTexture);
-		if (materialData.hasNormalTexture)
+		}
+		if (materialData.hasNormalTexture) {
+			materialData.normalTexture = glGetTextureHandleARB(materialData.normalTexture);
 			glMakeTextureHandleResidentARB(materialData.normalTexture);
-		if (materialData.hasMetallicRoughnessTexture)
+		}
+		if (materialData.hasMetallicRoughnessTexture) {
+			materialData.metallicRoughnessTexture = glGetTextureHandleARB(materialData.metallicRoughnessTexture);
 			glMakeTextureHandleResidentARB(materialData.metallicRoughnessTexture);
+		}
 		materialList.push_back(materialData);
 
 		std::vector<glm::mat4> _meshMatrices = model->getMatricesMeshes();

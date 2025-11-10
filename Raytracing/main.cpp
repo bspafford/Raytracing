@@ -160,9 +160,9 @@ void Main::Start() {
 	computeShader = new ComputeShader("shader.comp");
 
 	camera = new Camera(stuff::screenSize.x, stuff::screenSize.y, glm::vec3(0, 0, 5));
-	//sphere = new Model("models/sphere/sphere.gltf");
+	sphere = new Model("models/sphere/sphere.gltf");
 	//sphere = new Model("models/bunny/3k.gltf");
-	//cube = new Model("models/cube/cube.gltf");
+	cube = new Model("models/cube/cube.gltf");
 	sphereFlat = new Model("models/sphere1/sphere.gltf");
 }
 
