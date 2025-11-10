@@ -17,7 +17,7 @@ uniform mat4 rotation;
 uniform mat4 scale;
 
 void main() {
-	crntPos = vec3(model * translation * -rotation * scale * vec4(aPos, 1.0f));
+	crntPos = vec3(model * translation * rotation * scale * vec4(aPos, 1.0f));
 	gl_Position = projection * vec4(crntPos, 1.0);
 	color = aColor;
 	texCoord = mat2(0.0, -1.0, 1.0, 0.0) * aTex;

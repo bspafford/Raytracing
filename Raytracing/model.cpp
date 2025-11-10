@@ -1,6 +1,9 @@
 #include"Model.h"
 #include "SSBO.h"
 
+#define GLM_FORCE_DEFAULT_ALIGNED_GENTYPES
+#define GLM_FORCE_STD430
+
 Model::Model(const char* file) {
 	instances.push_back(this);
 
@@ -399,88 +402,141 @@ std::vector<Texture> Model::getLoadedTex() {
 	return loadedTex;
 }
 
-std::vector<BoundingBox> Model::buildBVH(std::vector<BoundingBox> boundingBoxes) {
-	if (boundingBoxes.size() == 1) // 1 parent
-		return boundingBoxes;
+// SAH
+// look at each axis, look through each index and find lowest cost split and its axis
+// then split list there, and recurse
+BoundingBox* Model::buildBVH(std::vector<Triangle*> triangles) {
+	GLuint triangleCount = 4;
 
-	// make cousins list
-	// prepend, return list
-	std::vector<BoundingBox> cousinsList;
-	for (int i = 0; i < boundingBoxes.size(); i += 2) {
-		BoundingBox left = boundingBoxes[i];
-		BoundingBox right = i + 1 < boundingBoxes.size() ? boundingBoxes[i + 1] : BoundingBox();
-		BoundingBox boundingBox(left, right);
-		cousinsList.push_back(boundingBox);
+	// leaf
+	if (triangles.size() <= 4)
+		return new BoundingBox(triangles);
+
+	// calc best cost, split, axis
+	float bestCost = FLT_MAX;
+	int bestAxis = -1;
+	int bestIndex = -1;
+
+	for (int axis = 0; axis < 3; axis++) {
+		// sort on axis
+		std::sort(triangles.begin(), triangles.end(), [axis](const Triangle* a, const Triangle* b) {
+			return a->centroidLoc[axis] < b->centroidLoc[axis];
+		});
+
+		for (int i = 0; i < triangles.size(); i++) {
+			glm::vec3 leftMin, leftMax, rightMin, rightMax;
+			Triangle::computeBounds(triangles, 0, i, leftMin, leftMax);
+			Triangle::computeBounds(triangles, i, triangles.size(), rightMin, rightMax);
+			float parentSurfaceArea = BoundingBox::calcSurfaceArea(glm::min(leftMin, rightMin), glm::max(leftMax, rightMax));
+
+			// Left: triangles [0, i)
+			// Right: triangles [i, N);
+			float cost = 1.f + ((BoundingBox::calcSurfaceArea(leftMin, leftMax) / parentSurfaceArea) * i +
+								(BoundingBox::calcSurfaceArea(rightMin, rightMax) / parentSurfaceArea) * (triangles.size() - i));
+
+			if (cost < bestCost) {
+				bestCost = cost;
+				bestAxis = axis;
+				bestIndex = i;
+			}
+		}
 	}
 
-	std::vector<BoundingBox> parentsList = buildBVH(cousinsList);
+	if (bestAxis != 2) // already sorted on z
+		std::sort(triangles.begin(), triangles.end(), [bestAxis](const Triangle* a, const Triangle* b) {
+			return a->centroidLoc[bestAxis] < b->centroidLoc[bestAxis];
+		});
 
-	parentsList.insert(parentsList.end(), boundingBoxes.begin(), boundingBoxes.end());
-	return parentsList;
+	// recurse
+	BoundingBox* left = buildBVH(std::vector<Triangle*>(triangles.begin(), triangles.begin() + bestIndex));
+	BoundingBox* right = buildBVH(std::vector<Triangle*>(triangles.begin() + bestIndex, triangles.end()));
+
+	// build bounding box parents
+	return new BoundingBox(left, right);
 }
 
-std::vector<BoundingBox> Model::BVH() {
-	std::vector<Vertex> vertexList;
-	std::vector<GLuint> indiceList;
-	std::vector<glm::mat4> meshMatrices;
-	std::vector<GLuint> meshStartLoc;
-	std::vector<MaterialData> materialList;
+GLuint Model::convertToGPU(BoundingBox* box, std::vector<GPUBoundingBox>& outList, std::unordered_map<Triangle*, int>& triangleMap) {
+	GLuint currIdx = outList.size();
+	outList.push_back(GPUBoundingBox(box));
 
+	if (outList[currIdx].isLeaf.x) {
+		outList[currIdx].children.x = (box->triangles.size() >= 1 && box->triangles[0]) ? triangleMap[box->triangles[0]] : -1;
+		outList[currIdx].children.y = (box->triangles.size() >= 2 && box->triangles[1]) ? triangleMap[box->triangles[1]] : -1;
+		outList[currIdx].children.z = (box->triangles.size() >= 3 && box->triangles[2]) ? triangleMap[box->triangles[2]] : -1;
+		outList[currIdx].children.w = (box->triangles.size() >= 4 && box->triangles[3]) ? triangleMap[box->triangles[3]] : -1;
+	} else {
+		outList[currIdx].children.x = box->left ? convertToGPU(box->left, outList, triangleMap) : -1;
+		outList[currIdx].children.y = box->right ? convertToGPU(box->right, outList, triangleMap) : -1;
+	}
+
+	return currIdx;
+}
+
+std::vector<GPUBoundingBox> Model::BVH() {
+	std::vector<Triangle*> triangles;
+	std::vector<Vertex> verticesList;
+	std::vector<glm::mat4> meshMatrices;
+	std::vector<MaterialData> materialList;
+	
 	// combine all objects vertices and indices
 	std::vector<BoundingBox> boundingBoxes;
 	GLuint indiceOffset = 0;
 	GLuint meshOffset = 0;
+
 	for (int m = 0; m < instances.size(); m++) {
 		Model* model = instances[m];
 		MaterialData materialData = model->getMaterialData()[0]; // only works with 1 material for now
 		materialData.baseColorTexture = materialData.hasBaseTexture ? glGetTextureHandleARB(materialData.baseColorTexture) : 0;
-		materialData.normalTexture = materialData.hasNoramlTexture ? glGetTextureHandleARB(materialData.normalTexture) : 0;
+		materialData.normalTexture = materialData.hasNormalTexture ? glGetTextureHandleARB(materialData.normalTexture) : 0;
 		materialData.metallicRoughnessTexture = materialData.hasMetallicRoughnessTexture ? glGetTextureHandleARB(materialData.metallicRoughnessTexture) : 0;
-		glMakeTextureHandleResidentARB(materialData.baseColorTexture);
-		glMakeTextureHandleResidentARB(materialData.normalTexture);
-		glMakeTextureHandleResidentARB(materialData.metallicRoughnessTexture);
+		if (materialData.hasBaseTexture)
+			glMakeTextureHandleResidentARB(materialData.baseColorTexture);
+		if (materialData.hasNormalTexture)
+			glMakeTextureHandleResidentARB(materialData.normalTexture);
+		if (materialData.hasMetallicRoughnessTexture)
+			glMakeTextureHandleResidentARB(materialData.metallicRoughnessTexture);
 		materialList.push_back(materialData);
 
 		std::vector<glm::mat4> _meshMatrices = model->getMatricesMeshes();
 		meshMatrices.insert(meshMatrices.end(), _meshMatrices.begin(), _meshMatrices.end());
 
 		for (Mesh& mesh : model->meshes) {
-			vertexList.insert(vertexList.end(), mesh.vertices.begin(), mesh.vertices.end());
-			for (GLuint& indice : mesh.indices)
-				indiceList.push_back(indice + indiceOffset);
-
+			verticesList.insert(verticesList.end(), mesh.vertices.begin(), mesh.vertices.end());
+			triangles.reserve(triangles.size() + mesh.indices.size() / 3);
 			for (int i = 0; i < mesh.indices.size(); i += 3) {
 				glm::vec3 p1 = mesh.vertices[mesh.indices[i]].position;
-				glm::vec3 p2 = mesh.vertices[mesh.indices[i + 1]].position;
-				glm::vec3 p3 = mesh.vertices[mesh.indices[i + 2]].position;
-				Triangle* triangle = new Triangle(p1, p2, p3, meshOffset + i, m); // need to account for indice offset
-				boundingBoxes.push_back(BoundingBox(triangle));
+				glm::vec3 p2 = mesh.vertices[mesh.indices[i+1]].position;
+				glm::vec3 p3 = mesh.vertices[mesh.indices[i+2]].position;
+				triangles.push_back(new Triangle(p1, p2, p3, glm::vec3(mesh.indices[i], mesh.indices[i+1], mesh.indices[i+2]) + glm::vec3(indiceOffset), m));
 			}
 
-			meshStartLoc.push_back(meshOffset);
 			meshOffset += mesh.indices.size();
 			indiceOffset += mesh.vertices.size();
 		}
 	}
 
-	// BVH sorting
-	std::sort(boundingBoxes.begin(), boundingBoxes.end(), [](const BoundingBox a, const BoundingBox b) {
-		return a.centroidLoc.x < b.centroidLoc.x;
-	});
+	BoundingBox* box = buildBVH(triangles);
 
-	// add padding to make sure list is a log of 2
-	int padding = pow(2, ceil(glm::log2((float)boundingBoxes.size())));
-	boundingBoxes.resize(padding, BoundingBox());
+	std::unordered_map<Triangle*, int> triangleMap;
+	triangleMap.reserve(triangles.size());
+	for (int i = 0; i < triangles.size(); i++)
+		triangleMap[triangles[i]] = i;
+	
+	// DFS to convert to GPUBoundingBox and list
+	std::vector<GPUBoundingBox> BVHList;
+	convertToGPU(box, BVHList, triangleMap);
 
-	std::vector<BoundingBox> BVHList = buildBVH(boundingBoxes);
+	std::vector<Triangle> triangleList;
+	triangleList.reserve(triangles.size());
+	for (Triangle* triangle : triangles)
+		triangleList.push_back(*triangle);
 
 	// setup SSBOs
-	SSBO::Bind(vertexList.data(), vertexList.size() * sizeof(Vertex), 0);
-	SSBO::Bind(indiceList.data(), indiceList.size() * sizeof(GLuint), 1);
-	SSBO::Bind(meshMatrices.data(), meshMatrices.size() * sizeof(glm::mat4), 2);
-	SSBO::Bind(meshStartLoc.data(), meshStartLoc.size() * sizeof(GLuint), 3);
-	SSBO::Bind(materialList.data(), materialList.size() * sizeof(MaterialData), 4);
-	SSBO::Bind(BVHList.data(), BVHList.size() * sizeof(BoundingBox), 5);
+	SSBO::Bind(verticesList.data(), verticesList.size() * sizeof(Vertex), 0);
+	SSBO::Bind(meshMatrices.data(), meshMatrices.size() * sizeof(glm::mat4), 1);
+	SSBO::Bind(materialList.data(), materialList.size() * sizeof(MaterialData), 2);
+	SSBO::Bind(BVHList.data(), BVHList.size() * sizeof(GPUBoundingBox), 3);
+	SSBO::Bind(triangleList.data(), triangleList.size() * sizeof(Triangle), 4);
 
 	return BVHList;
 }
