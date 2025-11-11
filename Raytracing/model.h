@@ -6,16 +6,21 @@
 using json = nlohmann::json;
 
 struct MaterialData {
-	GLuint64 baseColorTexture = -1;				glm::vec2 pad1;
-	GLuint64 normalTexture = -1;				glm::vec2 pad2;
-	GLuint64 metallicRoughnessTexture = -1;		glm::vec2 pad3;
+	glm::vec4 baseColorFactor;
+
+	GLuint64 baseColorTexture = -1;
 	int hasBaseTexture = 0;
+	float transmissionFactor = 0.f;
+
+	GLuint64 normalTexture = -1;
 	int hasNormalTexture = 0;
-	int hasMetallicRoughnessTexture = 0;
 	float metallicFactor = 1.f;
+
+	GLuint64 metallicRoughnessTexture = -1;
+	int hasMetallicRoughnessTexture = 0;
 	float roughnessFactor = 1.f;
 
-	MaterialData(GLuint64 _baseColorTexture, GLuint64 _normalTexture, GLuint64 _metallicRoughnessTexture, int _hasBaseTexture, int _hasNormalTexture, int _hasMetallicRoughnessTexture, float _metallicFactor, float _roughnessFactor) :
+	MaterialData(GLuint64 _baseColorTexture, GLuint64 _normalTexture, GLuint64 _metallicRoughnessTexture, int _hasBaseTexture, int _hasNormalTexture, int _hasMetallicRoughnessTexture, float _metallicFactor, float _roughnessFactor, float _transmissionFactor) :
 		baseColorTexture(_baseColorTexture),
 		normalTexture(_normalTexture),
 		metallicRoughnessTexture(_metallicRoughnessTexture),
@@ -23,16 +28,17 @@ struct MaterialData {
 		hasNormalTexture(_hasNormalTexture),
 		hasMetallicRoughnessTexture(_hasMetallicRoughnessTexture),
 		metallicFactor(_metallicFactor),
-		roughnessFactor(_roughnessFactor)
+		roughnessFactor(_roughnessFactor),
+		transmissionFactor(_transmissionFactor)
 	{};
 };
 
 struct Triangle {
-	glm::uvec3 indices;		float pad2;
-	glm::vec3 p1;			float pad3;
-	glm::vec3 p2;			float pad4;
-	glm::vec3 p3;			float pad5;
-	glm::vec3 centroidLoc;	float pad6;
+	alignas(16) glm::uvec3 indices;
+	alignas(16) glm::vec3 p1;
+	alignas(16) glm::vec3 p2;
+	alignas(16) glm::vec3 p3;
+	alignas(16) glm::vec3 centroidLoc;
 	glm::uvec4 meshIndex;
 
 	Triangle(glm::vec3 _p1, glm::vec3 _p2, glm::vec3 _p3, glm::uvec3 _indices, GLuint _meshIndex) : p1(_p1), p2(_p2), p3(_p3), indices(_indices), meshIndex(glm::uvec4(_meshIndex)) {
@@ -111,15 +117,16 @@ struct BoundingBox {
 };
 
 struct GPUBoundingBox {
-	glm::vec3 minLoc;		float pad2;
-	glm::vec3 maxLoc;		float pad3;
+	glm::vec3 minLoc;		float pad1;
+	glm::vec3 maxLoc;
+	GLuint isLeaf;
 	glm::ivec4 children = glm::ivec4(-1); // index of children
-	glm::ivec4 isLeaf = glm::ivec4(0);
+
 
 	GPUBoundingBox(BoundingBox* box) {
 		minLoc = glm::min(box->left ? box->left->minLoc : glm::vec3(FLT_MAX), box->right ? box->right->minLoc : glm::vec3(FLT_MAX));
 		maxLoc = glm::max(box->left ? box->left->maxLoc : glm::vec3(-FLT_MAX), box->right ? box->right->maxLoc : glm::vec3(-FLT_MAX));
-		isLeaf = glm::ivec4(!box->left && !box->right);
+		isLeaf = !box->left && !box->right;
 	}
 };
 

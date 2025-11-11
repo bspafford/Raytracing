@@ -12,8 +12,8 @@
 #include<glm/gtx/vector_angle.hpp>
 
 #include "math.h"
+#include "vector.h"
 #include"shaderClass.h"
-#include "stuff.h"
 
 class Camera {
 public:
@@ -41,12 +41,12 @@ public:
 	Camera(int width, int height, glm::vec3 position);
 
 	// Updates the camera matrix to the Vertex Shader
-	void updateMatrix();
+	void updateMatrix(vector screenSize);
 	// Exports the camera matrix to a shader
 	void Matrix(Shader* shader, const char* uniform);
 	// Handles camera inputs
 	void Inputs(GLFWwindow* window, float deltaTime);
 
-	void Update(float deltaTime, GLFWwindow* window, Shader* shader);
+	void Update(float deltaTime, GLFWwindow* window, Shader* shader, vector screenSize);
 };
 #endif

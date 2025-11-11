@@ -1,5 +1,4 @@
 #include"Camera.h"
-#include "main.h"
 
 Camera::Camera(int width, int height, glm::vec3 position) {
 	this->width = width;
@@ -7,9 +6,9 @@ Camera::Camera(int width, int height, glm::vec3 position) {
 	Position = position;
 }
 
-void Camera::updateMatrix() {
+void Camera::updateMatrix(vector screenSize) {
 	view = glm::lookAt(Position, Position + Orientation, Up);
-	projection = glm::perspective(glm::radians(FOVdeg), stuff::screenSize.x / stuff::screenSize.y, nearPlane, farPlane);
+	projection = glm::perspective(glm::radians(FOVdeg), screenSize.x / screenSize.y, nearPlane, farPlane);
 	cameraMatrix = projection * view;
 }
 
@@ -17,9 +16,9 @@ void Camera::Matrix(Shader* shader, const char* uniform) {
 	glUniformMatrix4fv(glGetUniformLocation(shader->ID, uniform), 1, GL_FALSE, glm::value_ptr(cameraMatrix));
 }
 
-void Camera::Update(float deltaTime, GLFWwindow* window, Shader* shader) {
+void Camera::Update(float deltaTime, GLFWwindow* window, Shader* shader, vector screenSize) {
 	Inputs(window, deltaTime);
-	updateMatrix();
+	updateMatrix(screenSize);
 	Matrix(shader, "projection");
 }
 

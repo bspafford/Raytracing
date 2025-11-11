@@ -24,8 +24,13 @@ private:
 	void Start();
 	void Update(float deltaTime);
 	void Draw(Shader* shader);
+
+	static void FramebufferSizeCallback(GLFWwindow* window, int width, int height);
 	
 	GLFWwindow* window;
+	static inline vector screenSize = { 800, 600 };
+
+	static inline unsigned int quadTexture;
 
 	Camera* camera;
 	Model* cube;
