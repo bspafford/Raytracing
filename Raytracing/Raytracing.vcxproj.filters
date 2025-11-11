@@ -89,9 +89,6 @@
     <ClInclude Include="EBO.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="stuff.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="computeShader.h">
       <Filter>Header Files</Filter>
     </ClInclude>

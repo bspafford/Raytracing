@@ -8,37 +8,42 @@ layout (local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
 layout(rgba32f, binding = 0) uniform image2D imgOutput;
 
 struct Vertex {
-	vec3 position; float pad1;
-    vec3 normal;   float pad2;
-    vec3 color;    float pad3;
-    vec2 texUV;    vec2 pad4;
+	vec3 position;
+    vec3 normal;
+    vec3 color;
+    vec2 texUV;
 	vec4 tangent;
 };
 
 struct MaterialData {
-	sampler2D baseColorTexture;				vec2 pad1;
-	sampler2D normalTexture;				vec2 pad2;
-	sampler2D metallicRoughnessTexture;		vec2 pad3;
+	vec4 baseColorFactor;
+
+	int64_t baseColorTexture;
 	int hasBaseTexture;
+	float transmissionFactor;
+
+	int64_t normalTexture;
 	int hasNormalTexture;
-	int hasMetallicRoughnessTexture;
 	float metallicFactor;
+
+	int64_t metallicRoughnessTexture;
+	int hasMetallicRoughnessTexture;
 	float roughnessFactor;
 };
 
 struct GPUBoundingBox {
-	vec3 minLoc;	float pad2;
-	vec3 maxLoc;	float pad3;
+	vec3 minLoc;
+	vec3 maxLoc;
+	uint isLeaf;
 	ivec4 children;
-	ivec4 isLeaf;
 };
 
 struct Triangle {
-	uvec3 indices;		float pad2;
-	vec3 p1;			float pad3;
-	vec3 p2;			float pad4;
-	vec3 p3;			float pad5;
-	vec3 centroidLoc;	float pad6;
+	uvec3 indices;
+	vec3 p1;
+	vec3 p2;
+	vec3 p3;
+	vec3 centroidLoc;
 	uvec4 meshIndex;
 };
 
@@ -131,7 +136,7 @@ bool intersectAABB(const vec3 rayOrigin, const vec3 rayDir, const vec3 aabbMin, 
     return tExit >= tEnter && tExit >= 0.0f;
 }
 
-bool lineCast(vec3 startPos, vec3 startDir, out Hit hit, bool breakOnHit = false, ivec2 pixel = ivec2(0, 0)) {
+bool lineCast(vec3 startPos, vec3 startDir, out Hit hit, bool breakOnHit = false) {
 	bool didHit = false;
 	float closestDist = 3.40282347e+38;
 	uint stack[64];
@@ -148,7 +153,6 @@ bool lineCast(vec3 startPos, vec3 startDir, out Hit hit, bool breakOnHit = false
 		
 		// test triangle in leaf
 		if (node.isLeaf == 1) { // at leaf node
-
 			for (int i = 0; i < 4; i++) {
 				if (node.children[i] == -1)
 					continue;
@@ -210,7 +214,7 @@ void main() {
 	int maxBounces = 5;
 	for (int bounce = 0; bounce < maxBounces; ++bounce) {
 		Hit hit;
-		if (lineCast(startPos, startDir, hit, false, pixel)) {
+		if (lineCast(startPos, startDir, hit)) {
 			uint i1 = hit.triangle.indices.x;
 			uint i2 = hit.triangle.indices.y;
 			uint i3 = hit.triangle.indices.z;
@@ -235,11 +239,25 @@ void main() {
 			startPos = hit.hitLoc + (hitNormal * 1e-5);
 			
 			MaterialData material = materialList[hit.triangle.meshIndex.x];
+
+			if (material.transmissionFactor > 0) {
+				// n1 * sin(a1) = n2 * sin(a2)
+				// sin(a2) = n2 / n1 * sin(a1);
+				float iorAir = 1;
+				float iorGlass = 1.5;
+				bool entering = dot(startDir, hitNormal) < 0;
+				vec3 normal = entering ? hitNormal : -hitNormal;
+				float eta = entering ? iorAir / iorGlass : iorGlass / iorAir;
+				startPos = hit.hitLoc - normal * 1e-5f;
+				startDir = refract(startDir, normal, eta);
+				continue;
+			}
+
 			float metallicFactor;
 			float roughnessFactor;
-			if (material.hasMetallicRoughnessTexture.x == 1) {
-				metallicFactor = texture(material.metallicRoughnessTexture, hitUV).r;
-				roughnessFactor = texture(material.metallicRoughnessTexture, hitUV).g;
+			if (material.hasMetallicRoughnessTexture == 1) {
+				metallicFactor = texture(sampler2D(material.metallicRoughnessTexture), hitUV).r;
+				roughnessFactor = texture(sampler2D(material.metallicRoughnessTexture), hitUV).g;
 			} else {
 				metallicFactor = material.metallicFactor.x;
 				roughnessFactor = material.roughnessFactor.x;
@@ -250,34 +268,32 @@ void main() {
 			if (lineCast(startPos, lightDir, shadowHit, true))
 				brightness = .5f;
 
-			vec3 baseColor = texture(material.baseColorTexture, hitUV).rgb;
+			vec3 baseColor = material.baseColorFactor.xyz;
+			if (material.hasBaseTexture == 1)
+				baseColor = texture(sampler2D(material.baseColorTexture), hitUV).rgb;
 			vec3 diffuseColor = baseColor * (1.f - metallicFactor);
 			color.rgb = mix(color.rgb, diffuseColor, throughput) * brightness;
 			throughput *= average(baseColor);
 
-			if (metallicFactor > 0) { // just reflect perfectly off normal if metallic isn't 0
-				if (dot(startDir, hitNormal) > 0.f)
-					hitNormal = -hitNormal; // ensure normal opposes the ray
+			if (dot(startDir, hitNormal) > 0.f)
+				hitNormal = -hitNormal; // ensure normal opposes the ray
 
-				if (material.hasNormalTexture.x == 1) {
-					vec3 tangent = normalize(vertices[i1].tangent.xyz * bary.x + vertices[i2].tangent.xyz * bary.y + vertices[i3].tangent.xyz * bary.z);
-					float handedness = vertices[i1].tangent.w * bary.x + vertices[i2].tangent.w * bary.y + vertices[i3].tangent.w * bary.z;
+			// metallic
+			if (material.hasNormalTexture == 1) {
+				vec3 tangent = normalize(vertices[i1].tangent.xyz * bary.x + vertices[i2].tangent.xyz * bary.y + vertices[i3].tangent.xyz * bary.z);
+				float handedness = vertices[i1].tangent.w * bary.x + vertices[i2].tangent.w * bary.y + vertices[i3].tangent.w * bary.z;
 
-					vec3 normalTex = normalize(texture(material.normalTexture, hitUV).rgb * 2.0 - 1.0); // [0, 1] -> [-1, 1]
+				vec3 normalTex = normalize(texture(sampler2D(material.normalTexture), hitUV).rgb * 2.0 - 1.0); // [0, 1] -> [-1, 1]
 
-					float normalStrength = 1.f;
-					normalTex.xy *= normalStrength;
+				float normalStrength = 1.f;
+				normalTex.xy *= normalStrength;
 
-					vec3 bitangent = cross(hitNormal, tangent) * handedness;
-					mat3 TBN = mat3(tangent, bitangent, hitNormal);
-					vec3 worldNormal = normalize(TBN * normalTex);
-					startDir = normalize(reflect(startDir, worldNormal));
-				} else
-					startDir = normalize(reflect(startDir, hitNormal));
-
-			} else { // light doesn't bounce, so stop looking
-				break;
-			}
+				vec3 bitangent = cross(hitNormal, tangent) * handedness;
+				mat3 TBN = mat3(tangent, bitangent, hitNormal);
+				vec3 worldNormal = normalize(TBN * normalTex);
+				startDir = normalize(reflect(startDir, worldNormal));
+			} else
+				startDir = normalize(reflect(startDir, hitNormal));
 		} else { // didn't hit anything
 			break;
 		}

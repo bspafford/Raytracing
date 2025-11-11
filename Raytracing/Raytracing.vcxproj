@@ -189,7 +189,6 @@
     <ClInclude Include="model.h" />
     <ClInclude Include="shaderClass.h" />
     <ClInclude Include="SSBO.h" />
-    <ClInclude Include="stuff.h" />
     <ClInclude Include="Texture.h" />
     <ClInclude Include="VAO.h" />
     <ClInclude Include="VBO.h" />

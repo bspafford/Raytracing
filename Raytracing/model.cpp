@@ -1,6 +1,8 @@
 #include"Model.h"
 #include "SSBO.h"
 
+#include <future>
+
 Model::Model(const char* file) {
 	instances.push_back(this);
 
@@ -239,19 +241,7 @@ std::vector<Texture> Model::getTextures() {
 
 	for (json& material : materials) {
 		json pbr = material["pbrMetallicRoughness"];
-		// Check if the texture has already been loaded
-		/*bool skip = false;
-		for (unsigned int j = 0; j < loadedTexName.size(); j++) {
-			if (loadedTexName[j] == texPath) {
-				textures.push_back(loadedTex[j]);
-				skip = true;
-				break;
-			}
-		}*/
 
-		// look to see the materials list, look for the basecolor, metallicroughtness, and normal texture, each one should have its own index
-		// if there isn't one then just ignore it
-		// then load the texture from the JSON["images"][image index]["uri"]
 		int normalIndex = -1;
 		if (material.contains("normalTexture"))
 			normalIndex = material["normalTexture"].value("index", -1);
@@ -263,6 +253,9 @@ std::vector<Texture> Model::getTextures() {
 			metallicRoughnessIndex = pbr["metallicRoughnessTexture"].value("index", -1);
 		float metallicFactor = pbr.value("metallicFactor", 1.f);
 		float roughnessFactor = pbr.value("roughnessFactor", 1.f);
+		int transmissionFactor = -1;
+		if (material.contains("extensions") && material["extensions"].contains("KHR_materials_transmission"))
+			transmissionFactor = material["extensions"]["KHR_materials_transmission"].value("transmissionFactor", -1);
 
 		int indexList[] = { normalIndex, baseColorIndex, metallicRoughnessIndex };
 		std::string typeList[] = { "normal", "diffuse", "specular" };
@@ -300,7 +293,8 @@ std::vector<Texture> Model::getTextures() {
 			hasNormal,
 			hasMetallic,
 			metallicFactor,
-			roughnessFactor
+			roughnessFactor,
+			transmissionFactor
 		));
 	}
 
@@ -445,18 +439,20 @@ BoundingBox* Model::buildBVH(std::vector<Triangle*> triangles) {
 		});
 
 	// recurse
-	BoundingBox* left = buildBVH(std::vector<Triangle*>(triangles.begin(), triangles.begin() + bestIndex));
+	std::future<BoundingBox*> leftFuture = std::async(std::launch::async, [&] {
+		return buildBVH(std::vector<Triangle*>(triangles.begin(), triangles.begin() + bestIndex));
+	});
 	BoundingBox* right = buildBVH(std::vector<Triangle*>(triangles.begin() + bestIndex, triangles.end()));
 
 	// build bounding box parents
-	return new BoundingBox(left, right);
+	return new BoundingBox(leftFuture.get(), right);
 }
 
 GLuint Model::convertToGPU(BoundingBox* box, std::vector<GPUBoundingBox>& outList, std::unordered_map<Triangle*, int>& triangleMap) {
 	GLuint currIdx = outList.size();
 	outList.push_back(GPUBoundingBox(box));
 
-	if (outList[currIdx].isLeaf.x) {
+	if (outList[currIdx].isLeaf) {
 		outList[currIdx].children.x = (box->triangles.size() >= 1 && box->triangles[0]) ? triangleMap[box->triangles[0]] : -1;
 		outList[currIdx].children.y = (box->triangles.size() >= 2 && box->triangles[1]) ? triangleMap[box->triangles[1]] : -1;
 		outList[currIdx].children.z = (box->triangles.size() >= 3 && box->triangles[2]) ? triangleMap[box->triangles[2]] : -1;
