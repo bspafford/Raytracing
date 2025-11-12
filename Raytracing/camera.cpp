@@ -6,7 +6,7 @@ Camera::Camera(int width, int height, glm::vec3 position) {
 	Position = position;
 }
 
-void Camera::updateMatrix(vector screenSize) {
+void Camera::updateMatrix(glm::vec2 screenSize) {
 	view = glm::lookAt(Position, Position + Orientation, Up);
 	projection = glm::perspective(glm::radians(FOVdeg), screenSize.x / screenSize.y, nearPlane, farPlane);
 	cameraMatrix = projection * view;
@@ -16,7 +16,7 @@ void Camera::Matrix(Shader* shader, const char* uniform) {
 	glUniformMatrix4fv(glGetUniformLocation(shader->ID, uniform), 1, GL_FALSE, glm::value_ptr(cameraMatrix));
 }
 
-void Camera::Update(float deltaTime, GLFWwindow* window, Shader* shader, vector screenSize) {
+void Camera::Update(float deltaTime, GLFWwindow* window, Shader* shader, glm::vec2 screenSize) {
 	Inputs(window, deltaTime);
 	updateMatrix(screenSize);
 	Matrix(shader, "projection");

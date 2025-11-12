@@ -67,6 +67,7 @@ int Main::createWindow() {
 	glEnable(GL_CULL_FACE);
 	glCullFace(GL_BACK);
 	glFrontFace(GL_CW);
+	//glEnable(GL_DEPTH_TEST);
 	glEnable(GL_BLEND);
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
@@ -129,6 +130,7 @@ int Main::createWindow() {
 			computeShader->setFloat("fov", camera->FOVdeg);
 			//computeShader->setVec3("lightDir", glm::normalize(glm::vec3(cos(time), 0.75, sin(time))));
 			computeShader->setVec3("lightDir", glm::normalize(glm::vec3(1.f, 0.75f, -0.5f)));
+			//computeShader->setVec3("lightDir", glm::normalize(glm::vec3(0, -1, 0)));
 			
 			glDispatchCompute((screenSize.x + 15) / 16, (screenSize.y + 15) / 16, 1); // simple strat to make somethiung like width = 500 into 512 which is divisible by 16
 			// make sure writing to image has finished before read
@@ -171,6 +173,7 @@ void Main::Start() {
 	cube = new Model("models/cube/cube.gltf");
 	sphereFlat = new Model("models/sphere1/sphere.gltf");
 	new Model("models/glassSphere/sphere.gltf");
+	//new Model("models/walls/walls.gltf");
 }
 
 void Main::Update(float deltaTime) {

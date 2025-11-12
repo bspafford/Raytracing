@@ -23,13 +23,14 @@ struct MaterialData {
 	float ior = 1.f;
 	float pad1[3];
 
-	MaterialData(GLuint64 _baseColorTexture, GLuint64 _normalTexture, GLuint64 _metallicRoughnessTexture, int _hasBaseTexture, int _hasNormalTexture, int _hasMetallicRoughnessTexture, float _metallicFactor, float _roughnessFactor, float _transmissionFactor, float _ior) :
+	MaterialData(GLuint64 _baseColorTexture, GLuint64 _normalTexture, GLuint64 _metallicRoughnessTexture, int _hasBaseTexture, int _hasNormalTexture, int _hasMetallicRoughnessTexture, glm::vec4 _baseColorFactor, float _metallicFactor, float _roughnessFactor, float _transmissionFactor, float _ior) :
 		baseColorTexture(_baseColorTexture),
 		normalTexture(_normalTexture),
 		metallicRoughnessTexture(_metallicRoughnessTexture),
 		hasBaseTexture(_hasBaseTexture),
 		hasNormalTexture(_hasNormalTexture),
 		hasMetallicRoughnessTexture(_hasMetallicRoughnessTexture),
+		baseColorFactor(_baseColorFactor),
 		metallicFactor(_metallicFactor),
 		roughnessFactor(_roughnessFactor),
 		transmissionFactor(_transmissionFactor),
