@@ -9,5 +9,7 @@ in vec3 crntPos;
 uniform vec3 color;
 
 void main() {
-	FragColor = vec4(color, 1.f);
+	vec3 lightDir = vec3(1.f, 0.75f, -0.5f);
+	FragColor = vec4(vec3(dot(lightDir, Normal)), 1.f);
+	FragColor = vec4(1, 1, 0, 1);
 }

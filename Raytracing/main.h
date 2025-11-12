@@ -8,8 +8,6 @@
 #include<glm/gtc/type_ptr.hpp>
 #include <chrono>
 
-#include "vector.h"
-
 class Camera;
 class Model;
 class Shader;
@@ -28,7 +26,7 @@ private:
 	static void FramebufferSizeCallback(GLFWwindow* window, int width, int height);
 	
 	GLFWwindow* window;
-	static inline vector screenSize = { 800, 600 };
+	static inline glm::vec2 screenSize = glm::vec2(800, 600);
 
 	static inline unsigned int quadTexture;
 

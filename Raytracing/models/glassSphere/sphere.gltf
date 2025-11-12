@@ -36,12 +36,12 @@
 			"name":"Sphere",
 			"pbrMetallicRoughness":{
 				"baseColorFactor":[
-					0.800000011920929,
-					0.800000011920929,
-					0.800000011920929,
+					1,
+					1,
+					1,
 					1
 				],
-				"metallicFactor":0,
+				"metallicFactor":1,
 				"roughnessFactor":0.05000000074505806
 			}
 		}

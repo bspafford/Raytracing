@@ -242,12 +242,17 @@ std::vector<Texture> Model::getTextures() {
 	for (json& material : materials) {
 		json pbr = material["pbrMetallicRoughness"];
 
-		int normalIndex = -1;
-		if (material.contains("normalTexture"))
-			normalIndex = material["normalTexture"].value("index", -1);
+		glm::vec4 baseColorFactor(1.f);
+		if (pbr.contains("baseColorFactor")) {
+			for (int i = 0; i < 4; i++)
+				baseColorFactor[i] = pbr["baseColorFactor"][i];
+		}
 		int baseColorIndex = -1;
 		if (pbr.contains("baseColorTexture"))
 			baseColorIndex = pbr["baseColorTexture"].value("index", -1);
+		int normalIndex = -1;
+		if (material.contains("normalTexture"))
+			normalIndex = material["normalTexture"].value("index", -1);
 		int metallicRoughnessIndex = -1;
 		if (pbr.contains("metallicRoughnessTexture"))
 			metallicRoughnessIndex = pbr["metallicRoughnessTexture"].value("index", -1);
@@ -298,6 +303,7 @@ std::vector<Texture> Model::getTextures() {
 			hasBase,
 			hasNormal,
 			hasMetallic,
+			baseColorFactor,
 			metallicFactor,
 			roughnessFactor,
 			transmissionFactor,
