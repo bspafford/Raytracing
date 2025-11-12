@@ -253,9 +253,15 @@ std::vector<Texture> Model::getTextures() {
 			metallicRoughnessIndex = pbr["metallicRoughnessTexture"].value("index", -1);
 		float metallicFactor = pbr.value("metallicFactor", 1.f);
 		float roughnessFactor = pbr.value("roughnessFactor", 1.f);
-		int transmissionFactor = -1;
-		if (material.contains("extensions") && material["extensions"].contains("KHR_materials_transmission"))
-			transmissionFactor = material["extensions"]["KHR_materials_transmission"].value("transmissionFactor", -1);
+		float transmissionFactor = -1;
+		float ior = -1;
+		if (material.contains("extensions")) {
+			json extensions = material["extensions"];
+			if (extensions.contains("KHR_materials_transmission"))
+				transmissionFactor = material["extensions"]["KHR_materials_transmission"].value("transmissionFactor", -1);
+			if (extensions.contains("KHR_materials_ior"))
+				ior = material["extensions"]["KHR_materials_ior"].value("ior", 1.f);
+		}
 
 		int indexList[] = { normalIndex, baseColorIndex, metallicRoughnessIndex };
 		std::string typeList[] = { "normal", "diffuse", "specular" };
@@ -294,7 +300,8 @@ std::vector<Texture> Model::getTextures() {
 			hasMetallic,
 			metallicFactor,
 			roughnessFactor,
-			transmissionFactor
+			transmissionFactor,
+			ior
 		));
 	}
 

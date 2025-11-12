@@ -15,26 +15,29 @@
 	"nodes":[
 		{
 			"mesh":0,
-			"name":"Icosphere.001"
+			"name":"Icosphere"
 		}
 	],
 	"materials":[
 		{
 			"doubleSided":true,
 			"name":"Material.001",
+			"normalTexture":{
+				"index":0
+			},
 			"pbrMetallicRoughness":{
 				"baseColorTexture":{
-					"index":0
+					"index":1
 				},
 				"metallicRoughnessTexture":{
-					"index":1
+					"index":2
 				}
 			}
 		}
 	],
 	"meshes":[
 		{
-			"name":"Icosphere",
+			"name":"Icosphere.003",
 			"primitives":[
 				{
 					"attributes":{
@@ -57,9 +60,18 @@
 		{
 			"sampler":0,
 			"source":1
+		},
+		{
+			"sampler":0,
+			"source":2
 		}
 	],
 	"images":[
+		{
+			"mimeType":"image/png",
+			"name":"Poliigon_MetalGoldPaint_7253_Normal",
+			"uri":"Poliigon_MetalGoldPaint_7253_Normal.png"
+		},
 		{
 			"mimeType":"image/jpeg",
 			"name":"Poliigon_MetalGoldPaint_7253_BaseColor",

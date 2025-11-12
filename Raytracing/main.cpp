@@ -104,7 +104,7 @@ int Main::createWindow() {
 		float deltaTime = std::chrono::duration<float>(currentTime - lastTime).count();
 		lastTime = currentTime;
 		time += deltaTime;
-		//std::cout << "fps: " << 1.f / deltaTime << "\n"; // 300, 2000, 3000
+		std::cout << "fps: " << 1.f / deltaTime << "\n"; // 300, 2000, 3000
 
 		glfwPollEvents();
 
@@ -115,7 +115,14 @@ int Main::createWindow() {
 			computeShader->setMat4("projection", camera->cameraMatrix);
 			computeShader->setMat4("invProj", glm::inverse(camera->cameraMatrix));
 			computeShader->setVec3("camPos", camera->Position);
-			computeShader->setVec3("camOrientation", camera->Orientation);
+
+			glm::vec3 camForward = glm::normalize(camera->Orientation);
+			glm::vec3 camRight = glm::normalize(glm::cross(camForward, glm::vec3(0.f, 1.f, 0.f)));
+			glm::vec3 camUp = glm::cross(camRight, camForward);
+			computeShader->setVec3("camForward", camForward);
+			computeShader->setVec3("camRight", camRight);
+			computeShader->setVec3("camUp", camUp);
+			
 			computeShader->setMat4("view", camera->view);
 			computeShader->setMat4("invView", glm::inverse(camera->view));
 			computeShader->setFloat("aspect", screenSize.x / screenSize.y);

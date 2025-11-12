@@ -20,7 +20,10 @@ struct MaterialData {
 	int hasMetallicRoughnessTexture = 0;
 	float roughnessFactor = 1.f;
 
-	MaterialData(GLuint64 _baseColorTexture, GLuint64 _normalTexture, GLuint64 _metallicRoughnessTexture, int _hasBaseTexture, int _hasNormalTexture, int _hasMetallicRoughnessTexture, float _metallicFactor, float _roughnessFactor, float _transmissionFactor) :
+	float ior = 1.f;
+	float pad1[3];
+
+	MaterialData(GLuint64 _baseColorTexture, GLuint64 _normalTexture, GLuint64 _metallicRoughnessTexture, int _hasBaseTexture, int _hasNormalTexture, int _hasMetallicRoughnessTexture, float _metallicFactor, float _roughnessFactor, float _transmissionFactor, float _ior) :
 		baseColorTexture(_baseColorTexture),
 		normalTexture(_normalTexture),
 		metallicRoughnessTexture(_metallicRoughnessTexture),
@@ -29,7 +32,8 @@ struct MaterialData {
 		hasMetallicRoughnessTexture(_hasMetallicRoughnessTexture),
 		metallicFactor(_metallicFactor),
 		roughnessFactor(_roughnessFactor),
-		transmissionFactor(_transmissionFactor)
+		transmissionFactor(_transmissionFactor),
+		ior(_ior)
 	{};
 };
 
