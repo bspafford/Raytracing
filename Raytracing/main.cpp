@@ -1,8 +1,10 @@
 #include "main.h"
 #include "Camera.h"
+#include "light.h"
 #include "model.h"
 #include "computeShader.h"
 #include "Box.h"
+#include "SSBO.h"
 
 int main() {
 	Main* _main = new Main();
@@ -13,12 +15,12 @@ void Main::setupQuad() {
 	float quadVertices[] = {
 		// positions        // texcoords
 		 1.0f,  1.0f, 0.0f,  1.0f, 1.0f,   // top right
-		 1.0f, -1.0f, 0.0f,  1.0f, 0.0f,   // bottom right
 		-1.0f, -1.0f, 0.0f,  0.0f, 0.0f,   // bottom left
+		 1.0f, -1.0f, 0.0f,  1.0f, 0.0f,   // bottom right
 
 		-1.0f, -1.0f, 0.0f,  0.0f, 0.0f,   // bottom left
-		-1.0f,  1.0f, 0.0f,  0.0f, 1.0f,   // top left
-		 1.0f,  1.0f, 0.0f,  1.0f, 1.0f    // top right
+		 1.0f,  1.0f, 0.0f,  1.0f, 1.0f,    // top right
+		-1.0f,  1.0f, 0.0f,  0.0f, 1.0f   // top left
 	};
 
 	glGenVertexArrays(1, &quadVAO);
@@ -66,8 +68,7 @@ int Main::createWindow() {
 
 	glEnable(GL_CULL_FACE);
 	glCullFace(GL_BACK);
-	glFrontFace(GL_CW);
-	//glEnable(GL_DEPTH_TEST);
+	glFrontFace(GL_CCW);
 	glEnable(GL_BLEND);
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
@@ -89,6 +90,11 @@ int Main::createWindow() {
 
 	computeShader->Activate();
 	std::vector<GPUBoundingBox> BVHList = Model::BVH();
+
+	// assign Lights to SSBO
+	std::vector<GPULight> lights = Light::ToGPU();
+	SSBO::Bind(lights.data(), lights.size() * sizeof(GPULight), 5);
+	computeShader->setInt("numLights", lights.size());
 
 	// build box list for visual
 	for (int i = 0; i < BVHList.size(); i++) {
@@ -112,6 +118,7 @@ int Main::createWindow() {
 		Update(deltaTime);
 
 		if (true) { // whether or not should render using computeShader
+			glDisable(GL_DEPTH_TEST);
 			computeShader->Activate();
 			computeShader->setMat4("projection", camera->cameraMatrix);
 			computeShader->setMat4("invProj", glm::inverse(camera->cameraMatrix));
@@ -128,9 +135,6 @@ int Main::createWindow() {
 			computeShader->setMat4("invView", glm::inverse(camera->view));
 			computeShader->setFloat("aspect", screenSize.x / screenSize.y);
 			computeShader->setFloat("fov", camera->FOVdeg);
-			//computeShader->setVec3("lightDir", glm::normalize(glm::vec3(cos(time), 0.75, sin(time))));
-			computeShader->setVec3("lightDir", glm::normalize(glm::vec3(1.f, 0.75f, -0.5f)));
-			//computeShader->setVec3("lightDir", glm::normalize(glm::vec3(0, -1, 0)));
 			
 			glDispatchCompute((screenSize.x + 15) / 16, (screenSize.y + 15) / 16, 1); // simple strat to make somethiung like width = 500 into 512 which is divisible by 16
 			// make sure writing to image has finished before read
@@ -142,12 +146,12 @@ int Main::createWindow() {
 			glBindTexture(GL_TEXTURE_2D, quadTexture);
 			renderQuad();
 
-			//shader->Activate();
-			//Draw(shader);
+			//DrawBoxes(shader);
 		} else {
+			glEnable(GL_DEPTH_TEST);
 			glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 			shader->setVec3("lightDir", glm::normalize(glm::vec3(cos(time), 0.75, sin(time))));
-			Draw(shader);
+			DrawModels(shader);
 		}
 
 		GLenum error;
@@ -168,6 +172,7 @@ void Main::Start() {
 	computeShader = new ComputeShader("shader.comp");
 
 	camera = new Camera(screenSize.x, screenSize.y, glm::vec3(0, 0, 5));
+	light = new Light(glm::vec3(0), glm::vec3(1.f, 0.75f, -0.5f), LightType::Sun);
 	sphere = new Model("models/sphere/sphere.gltf");
 	//sphere = new Model("models/bunny/3k.gltf");
 	cube = new Model("models/cube/cube.gltf");
@@ -181,18 +186,26 @@ void Main::Update(float deltaTime) {
 	camera->Update(deltaTime, window, shader, screenSize);
 }
 
-void Main::Draw(Shader* shader) {
+void Main::setShaderUniforms(Shader* shader) {
 	shader->Activate();
 	camera->Matrix(shader, "camMatrix");
 	shader->setMat4("model", glm::mat4(1));
 	shader->setMat4("translation", glm::mat4(1));
 	shader->setMat4("rotation", glm::mat4_cast(glm::quat(1, 0, 0, 0)));
 	shader->setMat4("scale", glm::mat4(1));
+	shader->setVec3("camPos", camera->Position);
+}
 
+void Main::DrawBoxes(Shader* shader) {
+	setShaderUniforms(shader);
 	for (Box* box : Box::instances)
 		box->draw(shader);
-	//for (Model* model : Model::instances)
-		//model->Draw(shader, camera);
+}
+
+void Main::DrawModels(Shader* shader) {
+	setShaderUniforms(shader);
+	for (Model* model : Model::instances)
+		model->Draw(shader, camera);
 }
 
 void Main::FramebufferSizeCallback(GLFWwindow* window, int width, int height) {

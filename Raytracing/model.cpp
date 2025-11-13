@@ -546,6 +546,7 @@ std::vector<GPUBoundingBox> Model::BVH() {
 	SSBO::Bind(materialList.data(), materialList.size() * sizeof(MaterialData), 2);
 	SSBO::Bind(BVHList.data(), BVHList.size() * sizeof(GPUBoundingBox), 3);
 	SSBO::Bind(triangleList.data(), triangleList.size() * sizeof(Triangle), 4);
+	SSBO::Bind(triangleList.data(), triangleList.size() * sizeof(Triangle), 5);
 
 	return BVHList;
 }

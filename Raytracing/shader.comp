@@ -34,7 +34,7 @@ struct MaterialData {
 	float pad1[3];
 };
 
-struct GPUBoundingBox {
+struct BoundingBox {
 	vec3 minLoc;
 	vec3 maxLoc;
 	uint isLeaf;
@@ -58,12 +58,23 @@ struct Ray {
 	bool isActive;
 };
 
+struct Light {
+	vec3 loc;
+	float strength;
+	vec3 dir;
+	uint lightType;
+	vec3 color;		float pad1;
+};
+
 // variables
 layout(std430, binding = 0) buffer VertexBuffer { Vertex vertices[]; };
 layout(std430, binding = 1) buffer MeshProj { mat4 meshProj[]; };
 layout(std430, binding = 2) buffer MaterialList { MaterialData materialList[]; };
-layout(std430, binding = 3) buffer GPUBoundingBoxList { GPUBoundingBox boundingBoxList[]; };
+layout(std430, binding = 3) buffer BoundingBoxList { BoundingBox boundingBoxList[]; };
 layout(std430, binding = 4) buffer Triangles { Triangle triangleList[]; };
+layout(std430, binding = 5) buffer Lights { Light lights[]; };
+
+uniform int numLights;
 
 uniform mat4 projection;
 uniform mat4 invProj;
@@ -75,7 +86,6 @@ uniform mat4 view;
 uniform mat4 invView;
 uniform float aspect;
 uniform float fov;
-uniform vec3 lightDir;
 
 bool RayIntersectsTriangle(vec3 orig, vec3 dir, vec3 v0, vec3 v1, vec3 v2, out vec3 hitLoc) {
     vec3 e1 = v1 - v0;
@@ -159,19 +169,20 @@ float fresnelReflectance(vec3 I, vec3 N, float ior1, float ior2) {
 bool lineCast(vec3 startPos, vec3 startDir, out Hit hit, bool breakOnHit = false) {
 	bool didHit = false;
 	float closestDist = 3.40282347e+38;
-	uint stack[64];
+	const uint stackSize = 64;
+	uint stack[stackSize];
 	uint stackPtr = 0;
 	stack[stackPtr++] = 0;
 
 	while (stackPtr > 0) {
 		uint nodeIndex = stack[--stackPtr];
-		GPUBoundingBox node = boundingBoxList[nodeIndex];
+		BoundingBox node = boundingBoxList[nodeIndex];
 
 		// test left and right for AABB intersection
 		if (intersectAABB(startPos, startDir, node.minLoc, node.maxLoc)) {
 			// test triangle in leaf
 			if (node.isLeaf == 1) { // at leaf node
-				for (int i = 0; i < 4; i++) {
+				for (int i = 0; i < 4; i++) { // loop through 1-4 triangles 
 					if (node.children[i] != -1) {
 						Triangle triangle = triangleList[node.children[i]];
 
@@ -196,9 +207,9 @@ bool lineCast(vec3 startPos, vec3 startDir, out Hit hit, bool breakOnHit = false
 					}
 				}
 			} else { // hit bounding box, not at leaf node
-				if (node.children.x != -1)
+				if (node.children.x != -1 && stackPtr < 64)
 					stack[stackPtr++] = node.children.x; // left child;
-				if (node.children.y != -1)
+				if (node.children.y != -1 && stackPtr < 64)
 					stack[stackPtr++] = node.children.y; // right child;
 			}
 		}
@@ -317,28 +328,38 @@ void main() {
 				activeRays[i].loc = hit.hitLoc + (normal * 1e-5);
 			}
 
-			Hit shadowHit;
-			float brightness = 1.f;
-			if (lineCast(activeRays[i].loc, lightDir, shadowHit, true))
-				brightness = .5f + (material.transmissionFactor * .5f);
+			
 
-			vec3 baseColor = material.baseColorFactor.xyz;
-			if (material.hasBaseTexture == 1)
-				baseColor = texture(sampler2D(material.baseColorTexture), hitUV).rgb;
+			// lighting / color
+			for (int l = 0; l < numLights; l++) {
+				Light light = lights[l];
+				vec3 lightDir = light.dir;
 
-			vec3 viewDir = normalize(camPos - hit.hitLoc);
-			vec3 halfDir = normalize(viewDir + lightDir);
+				if (light.lightType == 1) { // directional light
+					Hit shadowHit;
+					float brightness = 1.f;
+					if (lineCast(activeRays[i].loc, lightDir, shadowHit, true))
+						brightness = .5f + (material.transmissionFactor * .5f);
 
-			vec3 F0 = mix(vec3(0.04), baseColor, metallicFactor);
-			float fresnel = pow(1.0 - dot(viewDir, halfDir), 5.0);
-			vec3 F = F0 + (1.0 - F0) * fresnel;
+					vec3 baseColor = material.baseColorFactor.xyz;
+					if (material.hasBaseTexture == 1)
+						baseColor = texture(sampler2D(material.baseColorTexture), hitUV).rgb;
 
-			vec3 diffuse = baseColor * (1.f - metallicFactor);
+					vec3 viewDir = normalize(camPos - hit.hitLoc);
+					vec3 halfDir = normalize(viewDir + lightDir);
 
-			//color.rgb += diffuse * (1.f - F) * activeRays[i].strength;
-			color.rgb += diffuse * activeRays[i].strength;
-			if (!alreadySetStrength)
-				activeRays[i].strength *= F;
+					vec3 F0 = mix(vec3(0.04), baseColor, metallicFactor);
+					float fresnel = pow(1.0 - dot(viewDir, halfDir), 5.0);
+					vec3 F = F0 + (1.0 - F0) * fresnel;
+
+					vec3 diffuse = baseColor * (1.f - metallicFactor);
+
+						color.rgb += diffuse * (1.f - F) * activeRays[i].strength;
+
+					if (!alreadySetStrength)
+						activeRays[i].strength *= F;
+				}
+			}
 		}
 	}
 
