@@ -6,6 +6,7 @@ in vec2 texCoord;
 in vec3 Normal;
 in vec3 crntPos;
 
+uniform sampler2D baseTexture;
 uniform vec3 color;
 uniform vec3 camPos;
 
@@ -18,7 +19,7 @@ vec4 directLight() {
 
 vec4 pointLight()
 {	
-	float strength = 1.f;
+	float strength = 10.f;
 	vec3 lightVec = lightPos - crntPos;
 	float dist = length(lightVec);
 	vec3 normal = normalize(Normal);
@@ -29,5 +30,5 @@ vec4 pointLight()
 }
 
 void main() {
-	FragColor = pointLight();
+	FragColor = pointLight() * texture(baseTexture, texCoord);
 }
