@@ -172,13 +172,13 @@ void Main::Start() {
 	computeShader = new ComputeShader("shader.comp");
 
 	camera = new Camera(screenSize.x, screenSize.y, glm::vec3(0, 0, 5));
-	light = new Light(glm::vec3(0), glm::vec3(1.f, 0.75f, -0.5f), LightType::Sun);
+	//light = new Light(glm::vec3(0), glm::vec3(1.f, 0.75f, -0.5f), LightType::Sun);
+	light = new Light(glm::vec3(0, 2, 0), glm::vec3(0), LightType::Point, 10.f);
 	sphere = new Model("models/sphere/sphere.gltf");
-	//sphere = new Model("models/bunny/3k.gltf");
 	cube = new Model("models/cube/cube.gltf");
 	sphereFlat = new Model("models/sphere1/sphere.gltf");
 	new Model("models/glassSphere/sphere.gltf");
-	//new Model("models/walls/walls.gltf");
+	new Model("models/walls/walls.gltf");
 }
 
 void Main::Update(float deltaTime) {

@@ -1,9 +1,10 @@
 #include "light.h"
 
-Light::Light(glm::vec3 loc, glm::vec3 dir, int lightType) {
+Light::Light(glm::vec3 loc, glm::vec3 dir, int lightType, float strength) {
 	this->loc = loc;
 	this->dir = dir;
 	this->lightType = lightType;
+	this->strength = strength;
 
 	instances.push_back(*this);
 }

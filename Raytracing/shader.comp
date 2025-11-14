@@ -328,37 +328,64 @@ void main() {
 				activeRays[i].loc = hit.hitLoc + (normal * 1e-5);
 			}
 
-			
-
 			// lighting / color
 			for (int l = 0; l < numLights; l++) {
 				Light light = lights[l];
-				vec3 lightDir = light.dir;
 
-				if (light.lightType == 1) { // directional light
+				vec3 dirToLight = vec3(0.f);
+				vec3 brightness = vec3(0.f);
+				if (light.lightType == 0) { // point light
+					dirToLight = normalize(light.loc - hit.hitLoc);
+					float distToLight = length(light.loc - hit.hitLoc);
+
+					// check if light hit something, if not then its not in shadow, if it did, then make sure object hit before distance to light
 					Hit shadowHit;
-					float brightness = 1.f;
-					if (lineCast(activeRays[i].loc, lightDir, shadowHit, true))
-						brightness = .5f + (material.transmissionFactor * .5f);
+					bool inShadow = false;
+					if (lineCast(activeRays[i].loc, dirToLight, shadowHit)) {
+						if (distance(shadowHit.hitLoc, hit.hitLoc) < distToLight) {
+							inShadow = true;
+						}
+					}
 
-					vec3 baseColor = material.baseColorFactor.xyz;
-					if (material.hasBaseTexture == 1)
-						baseColor = texture(sampler2D(material.baseColorTexture), hitUV).rgb;
+					if (!inShadow) {
+						float constant = 1.f;
+						float quadratic = 1.f;
+						float linear = 1.f;
 
-					vec3 viewDir = normalize(camPos - hit.hitLoc);
-					vec3 halfDir = normalize(viewDir + lightDir);
+						float NdotL = max(dot(normal, dirToLight), 0.f);
+						float attenuation = light.strength / (constant + linear * distToLight + quadratic * distToLight * distToLight); // inverse square falloff
+						brightness = light.color * NdotL * attenuation;
+					}
 
-					vec3 F0 = mix(vec3(0.04), baseColor, metallicFactor);
-					float fresnel = pow(1.0 - dot(viewDir, halfDir), 5.0);
-					vec3 F = F0 + (1.0 - F0) * fresnel;
+				} else if (light.lightType == 1) { // directional light
+					dirToLight = light.dir;
 
-					vec3 diffuse = baseColor * (1.f - metallicFactor);
-
-						color.rgb += diffuse * (1.f - F) * activeRays[i].strength;
-
-					if (!alreadySetStrength)
-						activeRays[i].strength *= F;
+					Hit shadowHit;
+					brightness = vec3(1.f);
+					if (lineCast(activeRays[i].loc, dirToLight, shadowHit)) {
+						// TODO calculate caustics
+						MaterialData shadowMat = materialList[shadowHit.triangle.meshIndex.x];
+						brightness = vec3(.5f + (shadowMat.transmissionFactor * .5f));
+					}
 				}
+
+				vec3 baseColor = material.baseColorFactor.xyz;
+				if (material.hasBaseTexture == 1)
+					baseColor = texture(sampler2D(material.baseColorTexture), hitUV).rgb;
+
+				vec3 viewDir = normalize(camPos - hit.hitLoc);
+				vec3 halfDir = normalize(viewDir + dirToLight);
+
+				vec3 F0 = mix(vec3(0.04), baseColor, metallicFactor);
+				float fresnel = pow(1.0 - dot(viewDir, halfDir), 5.0);
+				vec3 F = F0 + (1.0 - F0) * fresnel;
+
+				vec3 diffuse = baseColor * (1.f - metallicFactor);
+
+				color.rgb += diffuse * (1.f - F) * activeRays[i].strength * brightness;
+
+				if (!alreadySetStrength)
+					activeRays[i].strength *= F;
 			}
 		}
 	}

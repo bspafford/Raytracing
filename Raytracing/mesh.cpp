@@ -51,7 +51,9 @@ void Mesh::Draw
 		textures[i].Bind();
 	}
 	// Take care of the camera Matrix
-	glUniform3f(glGetUniformLocation(shader->ID, "camPos"), camera->Position.x, camera->Position.y, camera->Position.z);
+	shader->setVec3("camPos", camera->Position);
+	if (textures.size() > 0)
+		shader->setInt("baseTexture", textures[0].unit);
 	camera->Matrix(shader, "camMatrix");
 
 	// Initialize matrices

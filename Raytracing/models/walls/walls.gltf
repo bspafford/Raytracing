@@ -15,29 +15,25 @@
 	"nodes":[
 		{
 			"mesh":0,
-			"name":"Cube"
+			"name":"Cube.001"
 		}
 	],
 	"materials":[
 		{
 			"doubleSided":true,
-			"name":"Material.007",
-			"normalTexture":{
-				"index":0,
-				"scale":10
-			},
+			"name":"Material.003",
 			"pbrMetallicRoughness":{
 				"baseColorTexture":{
-					"index":1
+					"index":0
 				},
 				"metallicFactor":0,
-				"roughnessFactor":0
+				"roughnessFactor":0.5
 			}
 		}
 	],
 	"meshes":[
 		{
-			"name":"Cube.002",
+			"name":"Cube.001",
 			"primitives":[
 				{
 					"attributes":{
@@ -56,95 +52,86 @@
 		{
 			"sampler":0,
 			"source":0
-		},
-		{
-			"sampler":0,
-			"source":1
 		}
 	],
 	"images":[
 		{
 			"mimeType":"image/png",
-			"name":"normal_mapping_normal_map",
-			"uri":"normal_mapping_normal_map.png"
-		},
-		{
-			"mimeType":"image/png",
-			"name":"baseColor",
-			"uri":"baseColor.png"
+			"name":"Untitled",
+			"uri":"Untitled.png"
 		}
 	],
 	"accessors":[
 		{
 			"bufferView":0,
 			"componentType":5126,
-			"count":28,
+			"count":72,
 			"max":[
-				7.246277332305908,
-				1,
-				7.246277332305908
+				9.24627685546875,
+				8.605629920959473,
+				9.900003433227539
 			],
 			"min":[
-				-7.246277332305908,
-				-1,
-				-7.246277332305908
+				-9.24627685546875,
+				-8.605629920959473,
+				-6.863194942474365
 			],
 			"type":"VEC3"
 		},
 		{
 			"bufferView":1,
 			"componentType":5126,
-			"count":28,
+			"count":72,
 			"type":"VEC3"
 		},
 		{
 			"bufferView":2,
 			"componentType":5126,
-			"count":28,
+			"count":72,
 			"type":"VEC2"
 		},
 		{
 			"bufferView":3,
 			"componentType":5126,
-			"count":28,
+			"count":72,
 			"type":"VEC4"
 		},
 		{
 			"bufferView":4,
 			"componentType":5123,
-			"count":42,
+			"count":108,
 			"type":"SCALAR"
 		}
 	],
 	"bufferViews":[
 		{
 			"buffer":0,
-			"byteLength":336,
+			"byteLength":864,
 			"byteOffset":0,
 			"target":34962
 		},
 		{
 			"buffer":0,
-			"byteLength":336,
-			"byteOffset":336,
+			"byteLength":864,
+			"byteOffset":864,
 			"target":34962
 		},
 		{
 			"buffer":0,
-			"byteLength":224,
-			"byteOffset":672,
+			"byteLength":576,
+			"byteOffset":1728,
 			"target":34962
 		},
 		{
 			"buffer":0,
-			"byteLength":448,
-			"byteOffset":896,
+			"byteLength":1152,
+			"byteOffset":2304,
 			"target":34962
 		},
 		{
 			"buffer":0,
-			"byteLength":84,
-			"byteOffset":1344,
+			"byteLength":216,
+			"byteOffset":3456,
 			"target":34963
 		}
 	],
@@ -156,8 +143,8 @@
 	],
 	"buffers":[
 		{
-			"byteLength":1428,
-			"uri":"cube.bin"
+			"byteLength":3672,
+			"uri":"walls.bin"
 		}
 	]
 }

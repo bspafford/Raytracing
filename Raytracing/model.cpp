@@ -258,12 +258,12 @@ std::vector<Texture> Model::getTextures() {
 			metallicRoughnessIndex = pbr["metallicRoughnessTexture"].value("index", -1);
 		float metallicFactor = pbr.value("metallicFactor", 1.f);
 		float roughnessFactor = pbr.value("roughnessFactor", 1.f);
-		float transmissionFactor = -1;
+		float transmissionFactor = 0;
 		float ior = -1;
 		if (material.contains("extensions")) {
 			json extensions = material["extensions"];
 			if (extensions.contains("KHR_materials_transmission"))
-				transmissionFactor = material["extensions"]["KHR_materials_transmission"].value("transmissionFactor", -1);
+				transmissionFactor = material["extensions"]["KHR_materials_transmission"].value("transmissionFactor", 0);
 			if (extensions.contains("KHR_materials_ior"))
 				ior = material["extensions"]["KHR_materials_ior"].value("ior", 1.f);
 		}
