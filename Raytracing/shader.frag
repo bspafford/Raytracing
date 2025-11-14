@@ -19,14 +19,14 @@ vec4 directLight() {
 
 vec4 pointLight()
 {	
-	float strength = 10.f;
+	float strength = 1.f;
 	vec3 lightVec = lightPos - crntPos;
 	float dist = length(lightVec);
 	vec3 normal = normalize(Normal);
 	vec3 lightDirection = normalize(lightVec);
 	float diffuse = max(dot(normal, lightDirection), 0.0f);
 
-	return vec4(diffuse * 1.f / dist * strength);
+	return vec4(vec3(diffuse * strength / dist), 1.f);
 }
 
 void main() {

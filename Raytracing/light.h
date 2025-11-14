@@ -25,7 +25,7 @@ struct GPULight {
 class Light {
 public:
 	Light(glm::vec3 loc, glm::vec3 dir, int lightType, float strength = 1.f);
-	static std::vector<GPULight> ToGPU();
+	static std::vector<GPULight> ToGPU(bool& hasSun);
 
 	static inline std::vector<Light> instances;
 

@@ -49,11 +49,12 @@ void Mesh::Draw
 		}
 		textures[i].texUnit(shader, (type + num).c_str(), i);
 		textures[i].Bind();
+
+		if (type == "diffuse")
+			shader->setInt("baseTexture", textures[0].unit);
 	}
 	// Take care of the camera Matrix
 	shader->setVec3("camPos", camera->Position);
-	if (textures.size() > 0)
-		shader->setInt("baseTexture", textures[0].unit);
 	camera->Matrix(shader, "camMatrix");
 
 	// Initialize matrices

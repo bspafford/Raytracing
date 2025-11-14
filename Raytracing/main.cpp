@@ -59,6 +59,7 @@ int Main::createWindow() {
 
 	glfwMakeContextCurrent(window);
 	glfwSetFramebufferSizeCallback(window, Main::FramebufferSizeCallback);
+	glfwSetKeyCallback(window, Main::KeyCallback);
 
 	if (!gladLoadGL()) {
 		return -1;
@@ -92,9 +93,11 @@ int Main::createWindow() {
 	std::vector<GPUBoundingBox> BVHList = Model::BVH();
 
 	// assign Lights to SSBO
-	std::vector<GPULight> lights = Light::ToGPU();
+	bool hasSun;
+	std::vector<GPULight> lights = Light::ToGPU(hasSun);
 	SSBO::Bind(lights.data(), lights.size() * sizeof(GPULight), 5);
 	computeShader->setInt("numLights", lights.size());
+	computeShader->setInt("hasSun", hasSun);
 
 	// build box list for visual
 	for (int i = 0; i < BVHList.size(); i++) {
@@ -117,7 +120,7 @@ int Main::createWindow() {
 
 		Update(deltaTime);
 
-		if (true) { // whether or not should render using computeShader
+		if (rayTraceEnabled) { // render raytraced
 			glDisable(GL_DEPTH_TEST);
 			computeShader->Activate();
 			computeShader->setMat4("projection", camera->cameraMatrix);
@@ -147,7 +150,7 @@ int Main::createWindow() {
 			renderQuad();
 
 			//DrawBoxes(shader);
-		} else {
+		} else { // render rasterized
 			glEnable(GL_DEPTH_TEST);
 			glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 			shader->setVec3("lightDir", glm::normalize(glm::vec3(cos(time), 0.75, sin(time))));
@@ -174,6 +177,7 @@ void Main::Start() {
 	camera = new Camera(screenSize.x, screenSize.y, glm::vec3(0, 0, 5));
 	//light = new Light(glm::vec3(0), glm::vec3(1.f, 0.75f, -0.5f), LightType::Sun);
 	light = new Light(glm::vec3(0, 2, 0), glm::vec3(0), LightType::Point, 10.f);
+	new Light(glm::vec3(2, .5f, 2), glm::vec3(0), LightType::Point, 10.f);
 	sphere = new Model("models/sphere/sphere.gltf");
 	cube = new Model("models/cube/cube.gltf");
 	sphereFlat = new Model("models/sphere1/sphere.gltf");
@@ -218,4 +222,10 @@ void Main::FramebufferSizeCallback(GLFWwindow* window, int width, int height) {
 	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, screenSize.x, screenSize.y, 0, GL_RGBA, GL_FLOAT, nullptr);
 	glBindImageTexture(0, quadTexture, 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA32F);
 	glBindTexture(GL_TEXTURE_2D, 0);
+}
+
+void Main::KeyCallback(GLFWwindow* window, int key, int scancode, int action, int mods) {
+	if (key == GLFW_KEY_E && action == GLFW_PRESS) {
+		Main::rayTraceEnabled = !Main::rayTraceEnabled;
+	}
 }
