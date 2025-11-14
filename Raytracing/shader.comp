@@ -75,6 +75,7 @@ layout(std430, binding = 4) buffer Triangles { Triangle triangleList[]; };
 layout(std430, binding = 5) buffer Lights { Light lights[]; };
 
 uniform int numLights;
+uniform bool hasSun;
 
 uniform mat4 projection;
 uniform mat4 invProj;
@@ -232,7 +233,7 @@ void main() {
 	const vec3 rayDir = normalize(camForward + px * camRight + py * camUp);
 
 	// background color
-	const vec4 ambientColor = vec4(0.4431372549, 0.73725490196, 1, 1);
+	const vec4 ambientColor = hasSun ? vec4(0.4431372549, 0.73725490196, 1, 1) : vec4(0, 0, 0, 1);
 	vec4 color = vec4(0);
 	const int maxBounces = 5;
 	const uint activeRaysNum = 4;
@@ -329,6 +330,7 @@ void main() {
 			}
 
 			// lighting / color
+			vec3 reflectionEnergy = vec3(0.f);
 			for (int l = 0; l < numLights; l++) {
 				Light light = lights[l];
 
@@ -378,15 +380,19 @@ void main() {
 
 				vec3 F0 = mix(vec3(0.04), baseColor, metallicFactor);
 				float fresnel = pow(1.0 - dot(viewDir, halfDir), 5.0);
-				vec3 F = F0 + (1.0 - F0) * fresnel;
+				vec3 F1 = F0 + (1.0 - F0) * fresnel;
+
+				// accumulate how reflective this surface is toward that light
+				reflectionEnergy += F1;
 
 				vec3 diffuse = baseColor * (1.f - metallicFactor);
 
-				color.rgb += diffuse * (1.f - F) * activeRays[i].strength * brightness;
-
-				if (!alreadySetStrength)
-					activeRays[i].strength *= F;
+				color.rgb += diffuse * (1.f - reflectionEnergy) * activeRays[i].strength * brightness;
 			}
+
+			// only decrease strength after all lights
+			if (!alreadySetStrength)
+				activeRays[i].strength *= reflectionEnergy / (numLights + 1);
 		}
 	}
 

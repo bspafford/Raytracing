@@ -22,6 +22,7 @@ private:
 	void setShaderUniforms(Shader* shader);
 
 	static void FramebufferSizeCallback(GLFWwindow* window, int width, int height);
+	static void KeyCallback(GLFWwindow* window, int key, int scancode, int action, int mods);
 	
 	GLFWwindow* window;
 	static inline glm::vec2 screenSize = glm::vec2(800, 600);
@@ -42,4 +43,6 @@ private:
 	GLuint quadVBO;
 	void setupQuad();
 	void renderQuad();
+
+	static inline bool rayTraceEnabled = true;
 };
