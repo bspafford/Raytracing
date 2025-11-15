@@ -18,6 +18,8 @@ public:
 
 	void setColor(glm::vec3 color);
 
+	static void DeleteAll();
+
 private:
 	std::vector<GLuint> indices;
 	std::vector<Vertex> vertices;

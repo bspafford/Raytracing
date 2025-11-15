@@ -37,7 +37,7 @@ private:
 
 	Shader* shader;
 	Shader* quadShader;
-	ComputeShader* computeShader;
+	static inline ComputeShader* computeShader;
 
 	GLuint quadVAO = 0;
 	GLuint quadVBO;

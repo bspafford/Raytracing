@@ -62,3 +62,9 @@ void Box::draw(Shader* shader) {
 void Box::setColor(glm::vec3 color) {
 	this->color = color;
 }
+
+void Box::DeleteAll() {
+	for (Box* box : instances)
+		delete box;
+	instances.clear();
+}

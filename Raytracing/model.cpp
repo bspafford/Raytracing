@@ -133,11 +133,15 @@ void Model::traverseNode(unsigned int nextNode, glm::mat4 matrix) {
 		loadMesh(node["mesh"]);
 	}
 
-	// Check if the node has children, and if it does, apply this function to them with the matNextNode
+	// if node has children
 	if (node.find("children") != node.end()) {
 		for (unsigned int i = 0; i < node["children"].size(); i++)
 			traverseNode(node["children"][i], matNextNode);
 	}
+
+	//if node has multiple meshes in model
+	if (nextNode + 1 < JSON["nodes"].size())
+		traverseNode(nextNode + 1);
 }
 
 std::vector<unsigned char> Model::getData() {
@@ -231,6 +235,7 @@ std::vector<GLuint> Model::getIndices(json accessor) {
 }
 
 std::vector<Texture> Model::getTextures() {
+	materialData.clear();
 	std::vector<Texture> textures;
 
 	std::string fileStr = std::string(file);
@@ -483,45 +488,52 @@ std::vector<GPUBoundingBox> Model::BVH() {
 	std::vector<Vertex> verticesList;
 	std::vector<glm::mat4> meshMatrices;
 	std::vector<MaterialData> materialList;
-	
+
 	// combine all objects vertices and indices
 	std::vector<BoundingBox> boundingBoxes;
 	GLuint indiceOffset = 0;
 	GLuint meshOffset = 0;
+	GLuint materialOffset = 0;
 
-	for (int m = 0; m < instances.size(); m++) {
-		Model* model = instances[m];
-		MaterialData materialData = model->getMaterialData()[0]; // only works with 1 material for now
-		if (materialData.hasBaseTexture) {
-			materialData.baseColorTexture = glGetTextureHandleARB(materialData.baseColorTexture);
-			glMakeTextureHandleResidentARB(materialData.baseColorTexture);
+	int test = 0;
+	for (Model* model : instances) {
+		std::vector<MaterialData> materialData = model->getMaterialData();
+		for (MaterialData& material : materialData) {
+			if (material.hasBaseTexture) {
+				material.baseColorTexture = glGetTextureHandleARB(material.baseColorTexture);
+				glMakeTextureHandleResidentARB(material.baseColorTexture);
+			}
+			if (material.hasNormalTexture) {
+				material.normalTexture = glGetTextureHandleARB(material.normalTexture);
+				glMakeTextureHandleResidentARB(material.normalTexture);
+			}
+			if (material.hasMetallicRoughnessTexture) {
+				material.metallicRoughnessTexture = glGetTextureHandleARB(material.metallicRoughnessTexture);
+				glMakeTextureHandleResidentARB(material.metallicRoughnessTexture);
+			}
 		}
-		if (materialData.hasNormalTexture) {
-			materialData.normalTexture = glGetTextureHandleARB(materialData.normalTexture);
-			glMakeTextureHandleResidentARB(materialData.normalTexture);
-		}
-		if (materialData.hasMetallicRoughnessTexture) {
-			materialData.metallicRoughnessTexture = glGetTextureHandleARB(materialData.metallicRoughnessTexture);
-			glMakeTextureHandleResidentARB(materialData.metallicRoughnessTexture);
-		}
-		materialList.push_back(materialData);
+		materialList.insert(materialList.end(), materialData.begin(), materialData.end());
 
 		std::vector<glm::mat4> _meshMatrices = model->getMatricesMeshes();
 		meshMatrices.insert(meshMatrices.end(), _meshMatrices.begin(), _meshMatrices.end());
 
-		for (Mesh& mesh : model->meshes) {
+		std::cout << model->meshes.size() << "\n";
+		for (int meshIdx = 0; meshIdx < model->meshes.size(); meshIdx++) {
+			Mesh& mesh = model->meshes[meshIdx];
 			verticesList.insert(verticesList.end(), mesh.vertices.begin(), mesh.vertices.end());
 			triangles.reserve(triangles.size() + mesh.indices.size() / 3);
 			for (int i = 0; i < mesh.indices.size(); i += 3) {
 				glm::vec3 p1 = mesh.vertices[mesh.indices[i]].position;
 				glm::vec3 p2 = mesh.vertices[mesh.indices[i+1]].position;
 				glm::vec3 p3 = mesh.vertices[mesh.indices[i+2]].position;
-				triangles.push_back(new Triangle(p1, p2, p3, glm::vec3(mesh.indices[i], mesh.indices[i+1], mesh.indices[i+2]) + glm::vec3(indiceOffset), m));
+				GLuint materialIdx = model->JSON["meshes"][meshIdx]["primitives"][0].value("material", 0) + materialOffset;
+				triangles.push_back(new Triangle(p1, p2, p3, glm::vec3(mesh.indices[i], mesh.indices[i+1], mesh.indices[i+2]) + glm::vec3(indiceOffset), meshOffset + meshIdx, materialIdx));
 			}
 
-			meshOffset += mesh.indices.size();
 			indiceOffset += mesh.vertices.size();
 		}
+		meshOffset += model->meshes.size();
+		materialOffset += materialData.size();
 	}
 
 	BoundingBox* box = buildBVH(triangles);
@@ -546,7 +558,13 @@ std::vector<GPUBoundingBox> Model::BVH() {
 	SSBO::Bind(materialList.data(), materialList.size() * sizeof(MaterialData), 2);
 	SSBO::Bind(BVHList.data(), BVHList.size() * sizeof(GPUBoundingBox), 3);
 	SSBO::Bind(triangleList.data(), triangleList.size() * sizeof(Triangle), 4);
-	SSBO::Bind(triangleList.data(), triangleList.size() * sizeof(Triangle), 5);
 
 	return BVHList;
+}
+
+void Model::DeleteAll() {
+	for (Model* model : instances) {
+		delete model;
+	}
+	instances.clear();
 }

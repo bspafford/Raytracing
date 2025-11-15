@@ -47,7 +47,9 @@ struct Triangle {
 	vec3 p2;
 	vec3 p3;
 	vec3 centroidLoc;
-	uvec4 meshIndex;
+	uint meshIndex;
+	uint materialIndex;
+	uint pad1[2];
 };
 
 struct Ray {
@@ -56,6 +58,7 @@ struct Ray {
 	vec3 strength;
 	bool refracting;
 	bool isActive;
+	bool roughness;
 };
 
 struct Light {
@@ -141,8 +144,11 @@ float average(vec3 v) {
 	return (v.x + v.y + v.z) / 3.f;
 }
 
-float rand(vec2 co){
-    return fract(sin(dot(co.xy ,vec2(12.9898,78.233))) * 43758.5453);
+float hash13(vec3 p)
+{
+    p = fract(p * 0.1031);
+    p += dot(p, p.yzx + 33.33);
+    return fract((p.x + p.y) * p.z);
 }
 
 bool intersectAABB(const vec3 rayOrigin, const vec3 rayDir, const vec3 aabbMin, const vec3 aabbMax) {
@@ -167,6 +173,38 @@ float fresnelReflectance(vec3 I, vec3 N, float ior1, float ior2) {
     return r0 + (1.0 - r0) * pow(1.0 - cosi, 5.0);
 }
 
+vec3 sampleGGX(vec3 N, float rand1, float rand2, float alpha) {
+    // -------- 1. Compute GGX half-vector in tangent space --------
+    float a2 = alpha * alpha;
+
+    // Spherical GGX distribution
+    float phi = 2.0 * 3.141592653589793 * rand1;
+    float cosTheta = sqrt((1.0 - rand2) / (1.0 + (a2 - 1.0) * rand2));
+    float sinTheta = sqrt(max(0.0, 1.0 - cosTheta * cosTheta));
+
+    // Half vector in tangent space
+    vec3 H_tangent = vec3(
+        sinTheta * cos(phi),
+        sinTheta * sin(phi),
+        cosTheta
+    );
+
+    // -------- 2. Build an orthonormal basis around N --------
+    vec3 up = abs(N.z) < 0.999 ? vec3(0.0, 0.0, 1.0) : vec3(1.0, 0.0, 0.0);
+
+    vec3 T = normalize(cross(up, N));
+    vec3 B = cross(N, T);
+
+    // -------- 3. Transform tangent-space vector into world space --------
+    vec3 H = normalize(
+        T * H_tangent.x +
+        B * H_tangent.y +
+        N * H_tangent.z
+    );
+
+    return H;
+}
+
 bool lineCast(vec3 startPos, vec3 startDir, out Hit hit, bool breakOnHit = false) {
 	bool didHit = false;
 	float closestDist = 3.40282347e+38;
@@ -187,9 +225,9 @@ bool lineCast(vec3 startPos, vec3 startDir, out Hit hit, bool breakOnHit = false
 					if (node.children[i] != -1) {
 						Triangle triangle = triangleList[node.children[i]];
 
-						vec3 p1 = vec3(meshProj[triangle.meshIndex.x] * vec4(vertices[triangle.indices.x].position, 1.f));
-						vec3 p2 = vec3(meshProj[triangle.meshIndex.x] * vec4(vertices[triangle.indices.y].position, 1.f));
-						vec3 p3 = vec3(meshProj[triangle.meshIndex.x] * vec4(vertices[triangle.indices.z].position, 1.f));
+						vec3 p1 = vec3(meshProj[triangle.meshIndex] * vec4(vertices[triangle.indices.x].position, 1.f));
+						vec3 p2 = vec3(meshProj[triangle.meshIndex] * vec4(vertices[triangle.indices.y].position, 1.f));
+						vec3 p3 = vec3(meshProj[triangle.meshIndex] * vec4(vertices[triangle.indices.z].position, 1.f));
 
 						vec3 _hitLoc;
 						if (RayIntersectsTriangle(startPos, startDir, p1, p2, p3, _hitLoc)) {
@@ -235,11 +273,11 @@ void main() {
 	// background color
 	const vec4 ambientColor = hasSun ? vec4(0.4431372549, 0.73725490196, 1, 1) : vec4(0, 0, 0, 1);
 	vec4 color = vec4(0);
-	const int maxBounces = 5;
+	const int maxBounces = 10;
 	const uint activeRaysNum = 4;
 	Ray activeRays[activeRaysNum];
 	int rayTailPtr = 0; // how many items in list
-	activeRays[rayTailPtr++] = Ray(camPos, rayDir, vec3(1), false, true); // add item to list
+	activeRays[rayTailPtr++] = Ray(camPos, rayDir, vec3(1), false, true, false); // add item to list
 	for (int bounce = 0; bounce < maxBounces; ++bounce) {
 		for (int i = 0; i < min(rayTailPtr, activeRaysNum); i++) { // min(rayTailPtr, activeRaysNum)
 			if (!activeRays[i].isActive) // skips rays that already hit nothing
@@ -259,9 +297,9 @@ void main() {
 
 			vec3 bary = barycentric(hit);
 
-			vec3 n1 = vec3(meshProj[hit.triangle.meshIndex.x] * vec4(vertices[i1].normal, 0.f));
-			vec3 n2 = vec3(meshProj[hit.triangle.meshIndex.x] * vec4(vertices[i2].normal, 0.f));
-			vec3 n3 = vec3(meshProj[hit.triangle.meshIndex.x] * vec4(vertices[i3].normal, 0.f));
+			vec3 n1 = vec3(meshProj[hit.triangle.meshIndex] * vec4(vertices[i1].normal, 0.f));
+			vec3 n2 = vec3(meshProj[hit.triangle.meshIndex] * vec4(vertices[i2].normal, 0.f));
+			vec3 n3 = vec3(meshProj[hit.triangle.meshIndex] * vec4(vertices[i3].normal, 0.f));
 			vec3 hitNormal = normalize(n1 * bary.x + n2 * bary.y + n3 * bary.z);
 
 			vec2 uv1 = vertices[i1].texUV;
@@ -270,7 +308,7 @@ void main() {
 
 			vec2 hitUV = uv1 * bary.x + uv2 * bary.y + uv3 * bary.z;
 
-			MaterialData material = materialList[hit.triangle.meshIndex.x];
+			MaterialData material = materialList[hit.triangle.materialIndex];
 
 			float metallicFactor;
 			float roughnessFactor;
@@ -302,7 +340,7 @@ void main() {
 				float iorAir = 1.f;
 				float reflectionStrength = fresnelReflectance(activeRays[i].dir, normal, iorAir, material.ior);
 				if (!activeRays[i].refracting) { // reflect
-					Ray refractingRay = Ray(activeRays[i].loc, activeRays[i].dir, activeRays[i].strength, true, true);
+					Ray refractingRay = Ray(activeRays[i].loc, activeRays[i].dir, activeRays[i].strength, true, true, false);
 					activeRays[rayTailPtr++] = refractingRay;
 
 					activeRays[i].dir = reflect(activeRays[i].dir, normal);
@@ -324,8 +362,21 @@ void main() {
 					continue;
 				}
 
-			} else {
-				activeRays[i].dir = reflect(activeRays[i].dir, normal);
+			} else { 
+				// roughness
+				if (roughnessFactor > 0.f) {
+					// create random hemisphere direction
+					vec3 newDir = sampleGGX(normal, hash13(vec3(pixel, (i + bounce))), hash13(vec3(pixel * 37.f, (i + bounce) * 37.f)), roughnessFactor);
+
+					if (activeRays[i].roughness == false) { // first ray create multiple rays
+						// add more rays
+					}
+
+					activeRays[i].dir = reflect(activeRays[i].dir, newDir);
+					activeRays[i].roughness = false;
+				} else {
+					activeRays[i].dir = reflect(activeRays[i].dir, normal);
+				}
 				activeRays[i].loc = hit.hitLoc + (normal * 1e-5);
 			}
 
@@ -364,9 +415,9 @@ void main() {
 
 					Hit shadowHit;
 					brightness = vec3(1.f);
-					if (lineCast(activeRays[i].loc, dirToLight, shadowHit)) {
+					if (lineCast(activeRays[i].loc, -dirToLight, shadowHit)) {
 						// TODO calculate caustics
-						MaterialData shadowMat = materialList[shadowHit.triangle.meshIndex.x];
+						MaterialData shadowMat = materialList[shadowHit.triangle.materialIndex];
 						brightness = vec3(.5f + (shadowMat.transmissionFactor * .5f));
 					}
 				}
@@ -393,6 +444,9 @@ void main() {
 			// only decrease strength after all lights
 			if (!alreadySetStrength)
 				activeRays[i].strength *= reflectionEnergy / (numLights + 1);
+			// deactivate ray if its too weak
+			if (length(activeRays[i].strength) < .05f)
+				activeRays[i].isActive = false;
 		}
 	}
 
