@@ -28,3 +28,7 @@ std::vector<GPULight> Light::ToGPU(bool& hasSun) {
 	}
 	return gpuLights;
 }
+
+void Light::DeleteAll() {
+	instances.clear();
+}

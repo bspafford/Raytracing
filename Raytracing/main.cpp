@@ -5,6 +5,7 @@
 #include "computeShader.h"
 #include "Box.h"
 #include "SSBO.h"
+#include "Scene.h"
 
 int main() {
 	Main* _main = new Main();
@@ -89,24 +90,6 @@ int Main::createWindow() {
 
 	setupQuad();
 
-	computeShader->Activate();
-	std::vector<GPUBoundingBox> BVHList = Model::BVH();
-
-	// assign Lights to SSBO
-	bool hasSun;
-	std::vector<GPULight> lights = Light::ToGPU(hasSun);
-	SSBO::Bind(lights.data(), lights.size() * sizeof(GPULight), 5);
-	computeShader->setInt("numLights", lights.size());
-	computeShader->setInt("hasSun", hasSun);
-
-	// build box list for visual
-	for (int i = 0; i < BVHList.size(); i++) {
-		GPUBoundingBox& boundingBox = BVHList[i];
-		Box* box = new Box(boundingBox.minLoc, boundingBox.maxLoc);
-		if (boundingBox.isLeaf) // second half of list, meaning its last node
-			box->setColor(glm::vec3(0, 1, 1));
-	}
-
 	auto lastTime = std::chrono::steady_clock::now();
 	float time = 0;
 	while (!glfwWindowShouldClose(window)) {
@@ -170,19 +153,15 @@ int Main::createWindow() {
 }
 
 void Main::Start() {
+	rayTraceEnabled = false;
+
 	shader = new Shader("shader.vert", "shader.frag");
 	quadShader = new Shader("quadShader.vert", "quadShader.frag");
 	computeShader = new ComputeShader("shader.comp");
 
 	camera = new Camera(screenSize.x, screenSize.y, glm::vec3(0, 0, 5));
-	//light = new Light(glm::vec3(0), glm::vec3(1.f, 0.75f, -0.5f), LightType::Sun);
-	light = new Light(glm::vec3(0, 2, 0), glm::vec3(0), LightType::Point, 10.f);
-	new Light(glm::vec3(2, .5f, 2), glm::vec3(0), LightType::Point, 10.f);
-	sphere = new Model("models/sphere/sphere.gltf");
-	cube = new Model("models/cube/cube.gltf");
-	sphereFlat = new Model("models/sphere1/sphere.gltf");
-	new Model("models/glassSphere/sphere.gltf");
-	new Model("models/walls/walls.gltf");
+
+	Scene::LoadScene(computeShader, 2);
 }
 
 void Main::Update(float deltaTime) {
@@ -228,4 +207,10 @@ void Main::KeyCallback(GLFWwindow* window, int key, int scancode, int action, in
 	if (key == GLFW_KEY_E && action == GLFW_PRESS) {
 		Main::rayTraceEnabled = !Main::rayTraceEnabled;
 	}
+
+	if (key >= GLFW_KEY_0 && key <= GLFW_KEY_9 && action == GLFW_PRESS) {
+		Scene::LoadScene(computeShader, key - GLFW_KEY_0);
+	}
+
+
 }

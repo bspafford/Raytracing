@@ -44,9 +44,11 @@ struct Triangle {
 	alignas(16) glm::vec3 p2;
 	alignas(16) glm::vec3 p3;
 	alignas(16) glm::vec3 centroidLoc;
-	glm::uvec4 meshIndex;
+	GLuint meshIndex;
+	GLuint materialIndex;
+	GLuint pad1[2];
 
-	Triangle(glm::vec3 _p1, glm::vec3 _p2, glm::vec3 _p3, glm::uvec3 _indices, GLuint _meshIndex) : p1(_p1), p2(_p2), p3(_p3), indices(_indices), meshIndex(glm::uvec4(_meshIndex)) {
+	Triangle(glm::vec3 _p1, glm::vec3 _p2, glm::vec3 _p3, glm::uvec3 _indices, GLuint _meshIndex, GLuint _materialIndex) : p1(_p1), p2(_p2), p3(_p3), indices(_indices), meshIndex(_meshIndex), materialIndex(_materialIndex) {
 		centroidLoc = (p1 + p2 + p3) / 3.f;
 	};
 
@@ -155,6 +157,8 @@ public:
 	static std::vector<GPUBoundingBox> BVH();
 	static BoundingBox* buildBVH(std::vector<Triangle*> triangles);
 	static GLuint convertToGPU(BoundingBox* box, std::vector<GPUBoundingBox>& outList, std::unordered_map<Triangle*, int>& triangleMap);
+
+	static void DeleteAll();
 
 	static inline std::vector<Model*> instances;
 
