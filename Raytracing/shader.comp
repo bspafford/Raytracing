@@ -205,7 +205,7 @@ vec3 sampleGGX(vec3 N, float rand1, float rand2, float alpha) {
     return H;
 }
 
-bool lineCast(vec3 startPos, vec3 startDir, out Hit hit, bool breakOnHit = false) {
+bool lineCast(vec3 startPos, vec3 startDir, out Hit hit) {
 	bool didHit = false;
 	float closestDist = 3.40282347e+38;
 	const uint stackSize = 64;
@@ -238,9 +238,6 @@ bool lineCast(vec3 startPos, vec3 startDir, out Hit hit, bool breakOnHit = false
 								closestDist = newDist;
 
 								hit.triangle = triangle;
-
-								if (breakOnHit)
-									return true;
 							}
 						}
 					}
@@ -350,18 +347,29 @@ void main() {
 				} else { // refract
 					bool entering = dot(activeRays[i].dir, normal) < 0;
 					if (entering) { 
-						activeRays[i].loc = hit.hitLoc - normal * 1e-5f;
+						activeRays[i].loc = hit.hitLoc - normal * 1e-5;
 						activeRays[i].dir = refract(activeRays[i].dir, normal, iorAir / material.ior);
 						activeRays[i].strength *= (1 - reflectionStrength) * material.transmissionFactor;
 						alreadySetStrength = true;
 					} else { // exiting
-						activeRays[i].loc = hit.hitLoc + normal * 1e-5f;
-						activeRays[i].dir = refract(activeRays[i].dir, -normal, material.ior / iorAir);
-						activeRays[i].refracting = false;
+						vec3 newLoc = hit.hitLoc + normal * 1e-5;
+						//activeRays[i].strength *= 1 / (distance(activeRays[i].loc, newLoc) * distance(activeRays[i].loc, newLoc)); // account for absorption
+						vec3 newDir = refract(activeRays[i].dir, -normal, material.ior / iorAir);
+
+						// Total Internal Reflection
+						if (length(newDir) == 0.f) {
+							// reflect on inside of object
+							activeRays[i].loc = hit.hitLoc - normal * 1e-5;
+							activeRays[i].dir = reflect(activeRays[i].dir, -normal);
+							activeRays[i].refracting = true;
+						} else {
+							activeRays[i].loc = newLoc;
+							activeRays[i].dir = newDir;
+							activeRays[i].refracting = false;
+						}
 					}
 					continue;
 				}
-
 			} else { 
 				// roughness
 				if (roughnessFactor > 0.f) {
@@ -417,8 +425,9 @@ void main() {
 					brightness = vec3(1.f);
 					if (lineCast(activeRays[i].loc, -dirToLight, shadowHit)) {
 						// TODO calculate caustics
-						MaterialData shadowMat = materialList[shadowHit.triangle.materialIndex];
-						brightness = vec3(.5f + (shadowMat.transmissionFactor * .5f));
+						//MaterialData shadowMat = materialList[shadowHit.triangle.materialIndex];
+						//brightness = vec3(.5f + (shadowMat.transmissionFactor * .5f));
+						brightness = vec3(.5f);
 					}
 				}
 
@@ -445,7 +454,7 @@ void main() {
 			if (!alreadySetStrength)
 				activeRays[i].strength *= reflectionEnergy / (numLights + 1);
 			// deactivate ray if its too weak
-			if (length(activeRays[i].strength) < .05f)
+			if (length(activeRays[i].strength) < .01f)
 				activeRays[i].isActive = false;
 		}
 	}
