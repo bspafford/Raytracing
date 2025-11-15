@@ -153,13 +153,13 @@ int Main::createWindow() {
 }
 
 void Main::Start() {
-	rayTraceEnabled = false;
+	rayTraceEnabled = true;
 
 	shader = new Shader("shader.vert", "shader.frag");
 	quadShader = new Shader("quadShader.vert", "quadShader.frag");
 	computeShader = new ComputeShader("shader.comp");
 
-	camera = new Camera(screenSize.x, screenSize.y, glm::vec3(0, 0, 5));
+	camera = new Camera(screenSize.x, screenSize.y, glm::vec3(0, 3.5, 14));
 
 	Scene::LoadScene(computeShader, 2);
 }
