@@ -353,7 +353,9 @@ void main() {
 						alreadySetStrength = true;
 					} else { // exiting
 						vec3 newLoc = hit.hitLoc + normal * 1e-5;
-						//activeRays[i].strength *= 1 / (distance(activeRays[i].loc, newLoc) * distance(activeRays[i].loc, newLoc)); // account for absorption
+						//float distanceInMedium = distance(activeRays[i].loc, newLoc);
+						//vec3 absorption = vec3(1, 0, 0); // hardcoded absorption coefficient
+						//activeRays[i].strength *= exp(-(vec3(1) - absorption) * distanceInMedium); // account for absorption
 						vec3 newDir = refract(activeRays[i].dir, -normal, material.ior / iorAir);
 
 						// Total Internal Reflection
@@ -374,14 +376,26 @@ void main() {
 				// roughness
 				if (roughnessFactor > 0.f) {
 					// create random hemisphere direction
-					vec3 newDir = sampleGGX(normal, hash13(vec3(pixel, (i + bounce))), hash13(vec3(pixel * 37.f, (i + bounce) * 37.f)), roughnessFactor);
+					vec3 newDir = sampleGGX(normal, hash13(vec3(pixel, (i * bounce))), hash13(vec3(pixel * 37.f, (i * bounce) * 37.f)), roughnessFactor);
+
+					if (length(newDir) == 0.f) {
+						imageStore(imgOutput, pixel, vec4(0, 0, 1, 1));
+						return;
+					}
 
 					if (activeRays[i].roughness == false) { // first ray create multiple rays
 						// add more rays
+						float rayNum = 2;
+						vec3 strength = activeRays[i].strength / rayNum;
+						activeRays[i].strength = strength;
+						for (int i = 0; i < rayNum - 1; i++)
+							activeRays[rayTailPtr++] = Ray(activeRays[i].loc, activeRays[i].dir, strength, false, true, true);
 					}
 
 					activeRays[i].dir = reflect(activeRays[i].dir, newDir);
 					activeRays[i].roughness = false;
+					alreadySetStrength = true;
+					
 				} else {
 					activeRays[i].dir = reflect(activeRays[i].dir, normal);
 				}
@@ -394,7 +408,7 @@ void main() {
 				Light light = lights[l];
 
 				vec3 dirToLight = vec3(0.f);
-				vec3 brightness = vec3(0.f);
+				float attenuation = 1.f;
 				if (light.lightType == 0) { // point light
 					dirToLight = normalize(light.loc - hit.hitLoc);
 					float distToLight = length(light.loc - hit.hitLoc);
@@ -402,32 +416,26 @@ void main() {
 					// check if light hit something, if not then its not in shadow, if it did, then make sure object hit before distance to light
 					Hit shadowHit;
 					bool inShadow = false;
+					float shadowTransmission = 1.f; // value of transmissionFactor of objects in between
 					if (lineCast(activeRays[i].loc, dirToLight, shadowHit)) {
 						if (distance(shadowHit.hitLoc, hit.hitLoc) < distToLight) {
-							inShadow = true;
+							continue; // skip this light since in shadow
 						}
 					}
 
-					if (!inShadow) {
-						float constant = 1.f;
-						float quadratic = 1.f;
-						float linear = 1.f;
+					float constant = 1.f;
+					float quadratic = 1.f;
+					float linear = 1.f;
 
-						float NdotL = max(dot(normal, dirToLight), 0.f);
-						float attenuation = light.strength / (constant + linear * distToLight + quadratic * distToLight * distToLight); // inverse square falloff
-						brightness = light.color * NdotL * attenuation;
-					}
-
+					float NdotL = max(dot(normal, dirToLight), 0.f);
+					attenuation = light.strength / (constant + linear * distToLight + quadratic * distToLight * distToLight); // inverse square falloff
 				} else if (light.lightType == 1) { // directional light
 					dirToLight = light.dir;
 
 					Hit shadowHit;
-					brightness = vec3(1.f);
 					if (lineCast(activeRays[i].loc, -dirToLight, shadowHit)) {
-						// TODO calculate caustics
-						//MaterialData shadowMat = materialList[shadowHit.triangle.materialIndex];
-						//brightness = vec3(.5f + (shadowMat.transmissionFactor * .5f));
-						brightness = vec3(.5f);
+						continue; // skip this light since in shadow
+
 					}
 				}
 
@@ -435,24 +443,54 @@ void main() {
 				if (material.hasBaseTexture == 1)
 					baseColor = texture(sampler2D(material.baseColorTexture), hitUV).rgb;
 
+				vec3 L = dirToLight;
 				vec3 viewDir = normalize(camPos - hit.hitLoc);
-				vec3 halfDir = normalize(viewDir + dirToLight);
-
 				vec3 F0 = mix(vec3(0.04), baseColor, metallicFactor);
-				float fresnel = pow(1.0 - dot(viewDir, halfDir), 5.0);
-				vec3 F1 = F0 + (1.0 - F0) * fresnel;
+				float alpha = roughnessFactor * roughnessFactor;
+				float PI = 3.14159265359;
+				vec3 diffuseColor = baseColor * (1.0 - metallicFactor);
+				vec3 specularColor = F0;
 
-				// accumulate how reflective this surface is toward that light
-				reflectionEnergy += F1;
+				float NdotL = max(dot(normal, L), 0.0);
+				if (NdotL <= 0.0)
+					continue;
 
-				vec3 diffuse = baseColor * (1.f - metallicFactor);
 
-				color.rgb += diffuse * (1.f - reflectionEnergy) * activeRays[i].strength * brightness;
+				// GGX SPECULAR
+				vec3 H = normalize(viewDir + L);
+
+				float NdotH = max(dot(normal, H), 0.0);
+				float NdotV = max(dot(normal, viewDir), 0.0);
+				float HdotV = max(dot(H, viewDir), 0.0);
+
+				// Fresnel
+				vec3 F = F0 + (1.0 - F0) * pow(1.0 - HdotV, 5.0);
+
+				// GGX Normal Distribution
+				float a2 = alpha * alpha;
+				float denom = (NdotH * NdotH) * (a2 - 1.0) + 1.0;
+				float D = a2 / (PI * denom * denom);
+
+				// Geometry term (Smith)
+				float k = (alpha + 1) * (alpha + 1) / 8.0;
+				float G_V = NdotV / (NdotV * (1.0 - k) + k);
+				float G_L = NdotL / (NdotL * (1.0 - k) + k);
+				float G = G_V * G_L;
+
+				vec3 specular = (D * F * G) / (4.0 * NdotV * NdotL + 0.001);
+
+				// Lambertian Diffuse
+				vec3 diffuse = diffuseColor / PI;
+
+				// Final Light Accumulation
+				vec3 radiance = light.color * attenuation;
+
+				color.rgb += (diffuse + specular) * radiance * NdotL * activeRays[i].strength;
 			}
 
 			// only decrease strength after all lights
 			if (!alreadySetStrength)
-				activeRays[i].strength *= reflectionEnergy / (numLights + 1);
+				activeRays[i].strength *= reflectionEnergy / numLights;
 			// deactivate ray if its too weak
 			if (length(activeRays[i].strength) < .01f)
 				activeRays[i].isActive = false;

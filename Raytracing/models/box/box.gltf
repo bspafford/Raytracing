@@ -15,27 +15,25 @@
 	"nodes":[
 		{
 			"mesh":0,
-			"name":"Icosphere.001"
+			"name":"Plane"
 		}
 	],
 	"materials":[
 		{
 			"doubleSided":true,
-			"name":"Material.001",
+			"name":"Material.002",
 			"pbrMetallicRoughness":{
-				"baseColorFactor":[
-					0.800000011920929,
-					0.800000011920929,
-					0.800000011920929,
-					1
-				],
-				"metallicFactor":0
+				"baseColorTexture":{
+					"index":0
+				},
+				"metallicFactor":0,
+				"roughnessFactor":1
 			}
 		}
 	],
 	"meshes":[
 		{
-			"name":"Icosphere.003",
+			"name":"Plane",
 			"primitives":[
 				{
 					"attributes":{
@@ -50,84 +48,103 @@
 			]
 		}
 	],
+	"textures":[
+		{
+			"sampler":0,
+			"source":0
+		}
+	],
+	"images":[
+		{
+			"mimeType":"image/png",
+			"name":"Untitled",
+			"uri":"Untitled.png"
+		}
+	],
 	"accessors":[
 		{
 			"bufferView":0,
 			"componentType":5126,
-			"count":205,
+			"count":20,
 			"max":[
-				-1,
-				3,
-				-1
+				4.07344388961792,
+				7.136051654815674,
+				4.582265853881836
 			],
 			"min":[
-				-3,
-				1,
-				-3
+				-4.07344388961792,
+				0,
+				-4.582265853881836
 			],
 			"type":"VEC3"
 		},
 		{
 			"bufferView":1,
 			"componentType":5126,
-			"count":205,
+			"count":20,
 			"type":"VEC3"
 		},
 		{
 			"bufferView":2,
 			"componentType":5126,
-			"count":205,
+			"count":20,
 			"type":"VEC2"
 		},
 		{
 			"bufferView":3,
 			"componentType":5126,
-			"count":205,
+			"count":20,
 			"type":"VEC4"
 		},
 		{
 			"bufferView":4,
 			"componentType":5123,
-			"count":960,
+			"count":30,
 			"type":"SCALAR"
 		}
 	],
 	"bufferViews":[
 		{
 			"buffer":0,
-			"byteLength":2460,
+			"byteLength":240,
 			"byteOffset":0,
 			"target":34962
 		},
 		{
 			"buffer":0,
-			"byteLength":2460,
-			"byteOffset":2460,
+			"byteLength":240,
+			"byteOffset":240,
 			"target":34962
 		},
 		{
 			"buffer":0,
-			"byteLength":1640,
-			"byteOffset":4920,
+			"byteLength":160,
+			"byteOffset":480,
 			"target":34962
 		},
 		{
 			"buffer":0,
-			"byteLength":3280,
-			"byteOffset":6560,
+			"byteLength":320,
+			"byteOffset":640,
 			"target":34962
 		},
 		{
 			"buffer":0,
-			"byteLength":1920,
-			"byteOffset":9840,
+			"byteLength":60,
+			"byteOffset":960,
 			"target":34963
+		}
+	],
+	"samplers":[
+		{
+			"magFilter":9729,
+			"minFilter":9987
 		}
 	],
 	"buffers":[
 		{
-			"byteLength":11760,
-			"uri":"roughSphere.bin"
+			"byteLength":1020,
+			"uri":"box.bin"
 		}
 	]
 }

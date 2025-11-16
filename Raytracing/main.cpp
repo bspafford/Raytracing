@@ -159,9 +159,9 @@ void Main::Start() {
 	quadShader = new Shader("quadShader.vert", "quadShader.frag");
 	computeShader = new ComputeShader("shader.comp");
 
-	camera = new Camera(screenSize.x, screenSize.y, glm::vec3(0, 3.5, 14));
+	camera = new Camera(screenSize.x, screenSize.y, glm::vec3(-2, 2, 2));
 
-	Scene::LoadScene(computeShader, 2);
+	Scene::LoadScene(computeShader, 3);
 }
 
 void Main::Update(float deltaTime) {
