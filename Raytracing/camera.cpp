@@ -1,4 +1,5 @@
 #include"Camera.h"
+#include "Renderer.h"
 
 Camera::Camera(int width, int height, glm::vec3 position) {
 	this->width = width;
@@ -23,6 +24,9 @@ void Camera::Update(float deltaTime, GLFWwindow* window, Shader* shader, glm::ve
 }
 
 void Camera::Inputs(GLFWwindow* window, float deltaTime) {
+	if (Renderer::isRenderering())
+		return;
+
 	glm::vec3 move = glm::vec3(0);
 	if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
 		move += Orientation;

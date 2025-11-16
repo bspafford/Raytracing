@@ -8,6 +8,8 @@ class Scene {
 public:
 	static void LoadScene(ComputeShader* computeShader, int sceneIndex);
 
+	static int getCurrSceneIndex() { return currSceneIndex; };
+
 private:
 	static void UnloadScene();
 	static void LoadGPUData(ComputeShader* computeShader);

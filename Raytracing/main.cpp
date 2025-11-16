@@ -1,11 +1,10 @@
 #include "main.h"
 #include "Camera.h"
-#include "light.h"
 #include "model.h"
 #include "computeShader.h"
 #include "Box.h"
-#include "SSBO.h"
 #include "Scene.h"
+#include "Renderer.h"
 
 int main() {
 	Main* _main = new Main();
@@ -132,6 +131,8 @@ int Main::createWindow() {
 			glBindTexture(GL_TEXTURE_2D, quadTexture);
 			renderQuad();
 
+			Renderer::NextFrame(quadTexture, screenSize.x, screenSize.y, camera);
+
 			//DrawBoxes(shader);
 		} else { // render rasterized
 			glEnable(GL_DEPTH_TEST);
@@ -161,7 +162,7 @@ void Main::Start() {
 
 	camera = new Camera(screenSize.x, screenSize.y, glm::vec3(-2, 2, 2));
 
-	Scene::LoadScene(computeShader, 3);
+	Scene::LoadScene(computeShader, 2);
 }
 
 void Main::Update(float deltaTime) {
@@ -212,5 +213,7 @@ void Main::KeyCallback(GLFWwindow* window, int key, int scancode, int action, in
 		Scene::LoadScene(computeShader, key - GLFW_KEY_0);
 	}
 
-
+	if (key == GLFW_KEY_R && action == GLFW_PRESS) { // render
+		Renderer::Start();
+	}
 }

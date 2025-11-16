@@ -377,12 +377,6 @@ void main() {
 				if (roughnessFactor > 0.f) {
 					// create random hemisphere direction
 					vec3 newDir = sampleGGX(normal, hash13(vec3(pixel, (i * bounce))), hash13(vec3(pixel * 37.f, (i * bounce) * 37.f)), roughnessFactor);
-
-					if (length(newDir) == 0.f) {
-						imageStore(imgOutput, pixel, vec4(0, 0, 1, 1));
-						return;
-					}
-
 					if (activeRays[i].roughness == false) { // first ray create multiple rays
 						// add more rays
 						float rayNum = 2;
@@ -497,5 +491,5 @@ void main() {
 		}
 	}
 
-	imageStore(imgOutput, pixel, color);
+	imageStore(imgOutput, pixel, vec4(color.rgb, 1.f));
 }
