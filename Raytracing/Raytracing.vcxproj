@@ -178,6 +178,7 @@
     <ClCompile Include="shaderClass.cpp" />
     <ClCompile Include="SSBO.cpp" />
     <ClCompile Include="stb.cpp" />
+    <ClCompile Include="Text.cpp" />
     <ClCompile Include="Texture.cpp" />
     <ClCompile Include="VAO.cpp" />
     <ClCompile Include="VBO.cpp" />
@@ -196,6 +197,8 @@
     <ClInclude Include="shaderClass.h" />
     <ClInclude Include="SSBO.h" />
     <ClInclude Include="stb_image_write.h" />
+    <ClInclude Include="stb_truetype.h" />
+    <ClInclude Include="Text.h" />
     <ClInclude Include="Texture.h" />
     <ClInclude Include="VAO.h" />
     <ClInclude Include="VBO.h" />
@@ -205,6 +208,8 @@
     <None Include="quadShader.vert" />
     <None Include="shader.frag" />
     <None Include="shader.vert" />
+    <None Include="textShader.frag" />
+    <None Include="textShader.vert" />
   </ItemGroup>
   <ItemGroup>
     <None Include="shader.comp">

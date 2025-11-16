@@ -66,6 +66,9 @@
     <ClCompile Include="Renderer.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="Text.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="main.h">
@@ -116,6 +119,12 @@
     <ClInclude Include="stb_image_write.h">
       <Filter>Resource Files</Filter>
     </ClInclude>
+    <ClInclude Include="Text.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="stb_truetype.h">
+      <Filter>Resource Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="shader.frag">
@@ -131,6 +140,12 @@
       <Filter>Resource Files</Filter>
     </None>
     <None Include="quadShader.vert">
+      <Filter>Resource Files</Filter>
+    </None>
+    <None Include="textShader.frag">
+      <Filter>Resource Files</Filter>
+    </None>
+    <None Include="textShader.vert">
       <Filter>Resource Files</Filter>
     </None>
   </ItemGroup>

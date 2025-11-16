@@ -14,6 +14,8 @@ class Main {
 public:
 	int createWindow();
 
+	static glm::vec2 getScreenSize() { return screenSize; }
+
 private:
 	void Start();
 	void Update(float deltaTime);
@@ -37,6 +39,7 @@ private:
 
 	Shader* shader;
 	Shader* quadShader;
+	Shader* textShader;
 	static inline ComputeShader* computeShader;
 
 	GLuint quadVAO = 0;

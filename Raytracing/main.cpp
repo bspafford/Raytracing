@@ -67,9 +67,9 @@ int Main::createWindow() {
 
 	glViewport(0, 0, screenSize.x, screenSize.y);
 
-	glEnable(GL_CULL_FACE);
-	glCullFace(GL_BACK);
-	glFrontFace(GL_CCW);
+	//glEnable(GL_CULL_FACE);
+	//glCullFace(GL_BACK);
+	//glFrontFace(GL_CCW);
 	glEnable(GL_BLEND);
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
@@ -96,7 +96,7 @@ int Main::createWindow() {
 		float deltaTime = std::chrono::duration<float>(currentTime - lastTime).count();
 		lastTime = currentTime;
 		time += deltaTime;
-		std::cout << "fps: " << 1.f / deltaTime << "\n"; // 300, 2000, 3000
+		//std::cout << "fps: " << 1.f / deltaTime << "\n"; // 300, 2000, 3000
 
 		glfwPollEvents();
 
@@ -131,7 +131,7 @@ int Main::createWindow() {
 			glBindTexture(GL_TEXTURE_2D, quadTexture);
 			renderQuad();
 
-			Renderer::NextFrame(quadTexture, screenSize.x, screenSize.y, camera);
+			Renderer::NextFrame(quadTexture, screenSize.x, screenSize.y, camera, textShader);
 
 			//DrawBoxes(shader);
 		} else { // render rasterized
@@ -154,10 +154,11 @@ int Main::createWindow() {
 }
 
 void Main::Start() {
-	rayTraceEnabled = true;
+	rayTraceEnabled = false;
 
 	shader = new Shader("shader.vert", "shader.frag");
 	quadShader = new Shader("quadShader.vert", "quadShader.frag");
+	textShader = new Shader("textShader.vert", "textShader.frag");
 	computeShader = new ComputeShader("shader.comp");
 
 	camera = new Camera(screenSize.x, screenSize.y, glm::vec3(-2, 2, 2));
@@ -193,6 +194,9 @@ void Main::DrawModels(Shader* shader) {
 }
 
 void Main::FramebufferSizeCallback(GLFWwindow* window, int width, int height) {
+	if (Renderer::isRenderering())
+		return;
+
 	screenSize = { float(width), float(height) };
 	glfwSetWindowSize(window, screenSize.x, screenSize.y);
 
@@ -214,6 +218,7 @@ void Main::KeyCallback(GLFWwindow* window, int key, int scancode, int action, in
 	}
 
 	if (key == GLFW_KEY_R && action == GLFW_PRESS) { // render
+		rayTraceEnabled = true;
 		Renderer::Start();
 	}
 }

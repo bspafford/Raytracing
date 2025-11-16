@@ -1,6 +1,8 @@
 #include "Renderer.h"
 #include "camera.h"
 #include "Scene.h"
+#include "shaderClass.h"
+#include "Text.h"
 
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "stb_image_write.h"
@@ -11,18 +13,16 @@
 #include <algorithm>
 
 void Renderer::Start() {
+	// disable window resizing during rendering
 	renderering = true;
-	// needs to know
-	// fps
-	// total frames
-	
-	// start camera track / animations that i want to play
-	
-	// start the rendering
+	renderStartTime = std::chrono::steady_clock::now();
+	frameStartTime = std::chrono::steady_clock::now();
 
+	if (!infoText)
+		infoText = new Text();
 }
 
-void Renderer::NextFrame(GLuint texId, GLuint width, GLuint height, Camera* camera) {
+void Renderer::NextFrame(GLuint texId, GLuint width, GLuint height, Camera* camera, Shader* textShader) {
 	if (!renderering)
 		return;
 
@@ -48,11 +48,21 @@ void Renderer::NextFrame(GLuint texId, GLuint width, GLuint height, Camera* came
 
 	UpdateCamera(camera);
 
+	std::chrono::steady_clock::time_point now = std::chrono::steady_clock::now();
+	float frameTime = std::chrono::duration_cast<std::chrono::milliseconds>(now - frameStartTime).count() / 1000.f;
+	float timeFromStart = std::chrono::duration_cast<std::chrono::milliseconds>(now - renderStartTime).count() / 1000.f;
+	float estimatedRemainingTime = timeFromStart / (currentFrame+1) * (totalFrames) - timeFromStart;
+
+	std::string infoString = "Frame " + std::to_string(currentFrame) + " | Last: " + std::to_string(frameTime) + " | Time: " + std::to_string(timeFromStart) + " | Remaining : " + std::to_string(estimatedRemainingTime);
+	infoText->draw(textShader, infoString);
+
+	frameStartTime = now;
+
 	// increase frame num
 	currentFrame++;
 	if (currentFrame >= totalFrames) {
 		renderering = false;
-		std::cout << "Rendering complete!\n";
+		std::cout << "Rendering complete! Took " << timeFromStart << " seconds\n";
 	}
 }
 
