@@ -45,12 +45,19 @@ void Scene::LoadScene(ComputeShader* computeShader, int sceneIndex) {
 		new Light(glm::vec3(0, 6.75254, 0), glm::vec3(1, -1, 1), LightType::Sun, 100.f);
 		new Model("models/burger/burger.gltf");
 		break;
+	case 6:
+		new Light(glm::vec3(0, 6.75254, 0), glm::vec3(1, -1, 1), LightType::Sun, 100.f);
+		new Model("models/Dragon/Dragon.gltf");
+		break;
 	}
 
 	LoadGPUData(computeShader);
 }
 
 void Scene::LoadGPUData(ComputeShader* computeShader) {
+	std::cout << "starting GPU data load\n";
+	auto startTime = std::chrono::steady_clock::now();
+
 	computeShader->Activate();
 	std::vector<GPUBoundingBox> BVHList = Model::BVH();
 
@@ -68,4 +75,6 @@ void Scene::LoadGPUData(ComputeShader* computeShader) {
 		if (boundingBox.isLeaf) // second half of list, meaning its last node
 			box->setColor(glm::vec3(0, 1, 1));
 	}
+
+	std::cout << "finished loading: " << std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - startTime).count() / 1000.f << "\n";
 }

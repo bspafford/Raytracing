@@ -30,5 +30,5 @@ vec4 pointLight()
 }
 
 void main() {
-	FragColor = pointLight() * texture(baseTexture, texCoord);
+	FragColor = directLight() * texture(baseTexture, texCoord);
 }

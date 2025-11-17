@@ -411,59 +411,93 @@ std::vector<Texture> Model::getLoadedTex() {
 	return loadedTex;
 }
 
-// SAH
-// look at each axis, look through each index and find lowest cost split and its axis
-// then split list there, and recurse
-BoundingBox* Model::buildBVH(std::vector<Triangle*> triangles) {
-	GLuint triangleCount = 4;
-
-	// leaf
-	if (triangles.size() <= 4)
-		return new BoundingBox(triangles);
-
-	// calc best cost, split, axis
-	float bestCost = FLT_MAX;
-	int bestAxis = -1;
-	int bestIndex = -1;
-
-	for (int axis = 0; axis < 3; axis++) {
-		// sort on axis
-		std::sort(triangles.begin(), triangles.end(), [axis](const Triangle* a, const Triangle* b) {
-			return a->centroidLoc[axis] < b->centroidLoc[axis];
+// bestCost, bestIndex
+std::pair<float, int> Model::computeForAxis(std::vector<Triangle*>& tris, int axis) {
+	// sort on axis
+	std::sort(tris.begin(), tris.end(), [axis](const Triangle* a, const Triangle* b) {
+		return a->centroidLoc[axis] < b->centroidLoc[axis];
 		});
 
-		for (int i = 0; i < triangles.size(); i++) {
-			glm::vec3 leftMin, leftMax, rightMin, rightMax;
-			Triangle::computeBounds(triangles, 0, i, leftMin, leftMax);
-			Triangle::computeBounds(triangles, i, triangles.size(), rightMin, rightMax);
-			float parentSurfaceArea = BoundingBox::calcSurfaceArea(glm::min(leftMin, rightMin), glm::max(leftMax, rightMax));
+	size_t size = tris.size();
+	std::vector<glm::vec3> prefixMin(size), prefixMax(size);
+	std::vector<glm::vec3> suffixMin(size), suffixMax(size);
 
-			// Left: triangles [0, i)
-			// Right: triangles [i, N);
-			float cost = 1.f + ((BoundingBox::calcSurfaceArea(leftMin, leftMax) / parentSurfaceArea) * i +
-								(BoundingBox::calcSurfaceArea(rightMin, rightMax) / parentSurfaceArea) * (triangles.size() - i));
+	// prefix
+	prefixMin[0] = tris[0]->minBounds;
+	prefixMax[0] = tris[0]->maxBounds;
+	for (int i = 1; i < size; ++i) {
+		prefixMin[i] = glm::min(prefixMin[i - 1], tris[i]->minBounds);
+		prefixMax[i] = glm::max(prefixMax[i - 1], tris[i]->maxBounds);
+	}
 
-			if (cost < bestCost) {
-				bestCost = cost;
-				bestAxis = axis;
-				bestIndex = i;
-			}
+	// suffix
+	suffixMin[size - 1] = tris[size-1]->minBounds;
+	suffixMax[size - 1] = tris[size-1]->maxBounds;
+	for (int i = size - 2; i >= 0; i--) {
+		suffixMin[i] = glm::min(suffixMin[i + 1], tris[i]->minBounds);
+		suffixMax[i] = glm::max(suffixMax[i + 1], tris[i]->maxBounds);
+	}
+
+	float bestCost = FLT_MAX;
+	int bestIndex = size / 2;
+	for (int i = 0; i < size; i++) {
+		float parentSurfaceArea = BoundingBox::calcSurfaceArea(glm::min(prefixMin[i], suffixMin[i]), glm::max(prefixMax[i], suffixMax[i]));
+
+		// Left: triangles [0, i)
+		// Right: triangles [i, N);
+		float cost = 1.f + ((BoundingBox::calcSurfaceArea(prefixMin[i], prefixMax[i]) / parentSurfaceArea) * i +
+			(BoundingBox::calcSurfaceArea(suffixMin[i], suffixMax[i]) / parentSurfaceArea) * (size - i));
+
+		if (cost < bestCost) {
+			bestCost = cost;
+			bestIndex = i;
 		}
 	}
 
-	if (bestAxis != 2) // already sorted on z
-		std::sort(triangles.begin(), triangles.end(), [bestAxis](const Triangle* a, const Triangle* b) {
-			return a->centroidLoc[bestAxis] < b->centroidLoc[bestAxis];
-		});
+	return { bestCost, bestIndex };
+}
+
+// SAH
+// look at each axis, look through each index and find lowest cost split and its axis
+// then split list there, and recurse
+BoundingBox* Model::buildBVH(std::vector<Triangle*>::iterator begin, std::vector<Triangle*>::iterator end) {
+	GLuint triangleCount = 4;
+	size_t size = end - begin;
+
+	// leaf
+	if (size <= triangleCount)
+		return new BoundingBox(std::vector<Triangle*>(begin, end));
+
+	// precompute bounds
+	std::vector<glm::vec3> prefixMin(size), prefixMax(size);
+	std::vector<glm::vec3> suffixMin(size), suffixMax(size);
+	
+	std::vector<Triangle*> axisData[3];
+	for (int axis = 0; axis < 3; axis++)
+		axisData[axis] = std::vector<Triangle*>(begin, end);
+
+	// async for best axis
+	auto f0 = std::async(std::launch::async, computeForAxis, std::ref(axisData[0]), 0);
+	auto f1 = std::async(std::launch::async, computeForAxis, std::ref(axisData[1]), 1);
+	auto f2 = std::async(std::launch::async, computeForAxis, std::ref(axisData[2]), 2);
+
+	std::pair<float, int> r0 = f0.get();
+	std::pair<float, int> r1 = f1.get();
+	std::pair<float, int> r2 = f2.get();
+
+	float best = r0.first;
+	int bestAxis = 0;
+	int bestIndex = r0.second;
+	if (r1.first < best) { best = r1.first; bestAxis = 1; bestIndex = r1.second; }
+	if (r2.first < best) { best = r2.first; bestAxis = 2; bestIndex = r2.second; }
+	auto& sorted = axisData[bestAxis];
 
 	// recurse
-	std::future<BoundingBox*> leftFuture = std::async(std::launch::async, [&] {
-		return buildBVH(std::vector<Triangle*>(triangles.begin(), triangles.begin() + bestIndex));
-	});
-	BoundingBox* right = buildBVH(std::vector<Triangle*>(triangles.begin() + bestIndex, triangles.end()));
+	BoundingBox* left = buildBVH(sorted.begin(), sorted.begin() + bestIndex);
+	BoundingBox* right = buildBVH(sorted.begin() + bestIndex, sorted.end());
 
 	// build bounding box parents
-	return new BoundingBox(leftFuture.get(), right);
+	return new BoundingBox(left, right);
 }
 
 GLuint Model::convertToGPU(BoundingBox* box, std::vector<GPUBoundingBox>& outList, std::unordered_map<Triangle*, int>& triangleMap) {
@@ -536,7 +570,7 @@ std::vector<GPUBoundingBox> Model::BVH() {
 		materialOffset += materialData.size();
 	}
 
-	BoundingBox* box = buildBVH(triangles);
+	BoundingBox* box = buildBVH(triangles.begin(), triangles.end());
 
 	std::unordered_map<Triangle*, int> triangleMap;
 	triangleMap.reserve(triangles.size());

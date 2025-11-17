@@ -47,6 +47,8 @@ struct Triangle {
 	vec3 p2;
 	vec3 p3;
 	vec3 centroidLoc;
+	vec3 minBounds;
+	vec3 maxBounds;
 	uint meshIndex;
 	uint materialIndex;
 	uint pad1[2];

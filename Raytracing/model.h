@@ -44,12 +44,16 @@ struct Triangle {
 	alignas(16) glm::vec3 p2;
 	alignas(16) glm::vec3 p3;
 	alignas(16) glm::vec3 centroidLoc;
+	alignas(16) glm::vec3 minBounds;
+	alignas(16) glm::vec3 maxBounds;
 	GLuint meshIndex;
 	GLuint materialIndex;
 	GLuint pad1[2];
 
 	Triangle(glm::vec3 _p1, glm::vec3 _p2, glm::vec3 _p3, glm::uvec3 _indices, GLuint _meshIndex, GLuint _materialIndex) : p1(_p1), p2(_p2), p3(_p3), indices(_indices), meshIndex(_meshIndex), materialIndex(_materialIndex) {
 		centroidLoc = (p1 + p2 + p3) / 3.f;
+		minBounds = glm::min(glm::min(p1, p2), p3);
+		maxBounds = glm::max(glm::max(p1, p2), p3);
 	};
 
 	static void computeBounds(std::vector<Triangle*>& list, int start, int end, glm::vec3& min, glm::vec3& max) {
@@ -155,7 +159,8 @@ public:
 	std::vector<Texture> getLoadedTex();
 
 	static std::vector<GPUBoundingBox> BVH();
-	static BoundingBox* buildBVH(std::vector<Triangle*> triangles);
+	static BoundingBox* buildBVH(std::vector<Triangle*>::iterator begin, std::vector<Triangle*>::iterator end);
+	static std::pair<float, int> computeForAxis(std::vector<Triangle*>& tris, int axis);
 	static GLuint convertToGPU(BoundingBox* box, std::vector<GPUBoundingBox>& outList, std::unordered_map<Triangle*, int>& triangleMap);
 
 	static void DeleteAll();
