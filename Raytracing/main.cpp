@@ -163,7 +163,7 @@ void Main::Start() {
 
 	camera = new Camera(screenSize.x, screenSize.y, glm::vec3(-2, 2, 2));
 
-	Scene::LoadScene(computeShader, 2);
+	Scene::LoadScene(computeShader, 3);
 }
 
 void Main::Update(float deltaTime) {

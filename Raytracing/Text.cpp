@@ -90,7 +90,6 @@ void Text::draw(Shader* shader, std::string text) {
     shader->setInt("tex", 0);
 
     glm::mat4 proj = glm::ortho(0.f, Main::getScreenSize().x, 0.f, Main::getScreenSize().y, 0.f, 1000.f);
-    //glm::mat4 proj = glm::ortho(-1.f, 1.f, -1.f, 1.f, 0.f, 1000.f);
     shader->setMat4("proj", proj);
 
     glActiveTexture(GL_TEXTURE0);

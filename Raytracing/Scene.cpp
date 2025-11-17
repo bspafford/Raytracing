@@ -35,6 +35,16 @@ void Scene::LoadScene(ComputeShader* computeShader, int sceneIndex) {
 		new Light(glm::vec3(0, 6.75254, 0), glm::vec3(0), LightType::Point, 100.f);
 		new Model("models/box/box.gltf");
 		new Model("models/roughSphere/roughSphere.gltf");
+		break;
+	case 4:
+		new Light(glm::vec3(0, 6.75254, 0), glm::vec3(1, -1, 1), LightType::Sun, 100.f);
+		//new Light(glm::vec3(0, 2, 0), glm::vec3(0, -1, 0), LightType::Sun, 30.f);
+		new Model("models/scene4/scene4.gltf");
+		break;
+	case 5:
+		new Light(glm::vec3(0, 6.75254, 0), glm::vec3(1, -1, 1), LightType::Sun, 100.f);
+		new Model("models/burger/burger.gltf");
+		break;
 	}
 
 	LoadGPUData(computeShader);

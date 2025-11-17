@@ -388,8 +388,6 @@ void main() {
 
 					activeRays[i].dir = reflect(activeRays[i].dir, newDir);
 					activeRays[i].roughness = false;
-					alreadySetStrength = true;
-					
 				} else {
 					activeRays[i].dir = reflect(activeRays[i].dir, normal);
 				}
@@ -397,7 +395,16 @@ void main() {
 			}
 
 			// lighting / color
-			vec3 reflectionEnergy = vec3(0.f);
+			vec3 baseColor = material.baseColorFactor.xyz;
+			if (material.hasBaseTexture == 1)
+				baseColor = texture(sampler2D(material.baseColorTexture), hitUV).rgb;
+			vec3 viewDir = normalize(camPos - hit.hitLoc);
+			vec3 F0 = mix(vec3(0.04), baseColor, metallicFactor);
+			float alpha = roughnessFactor * roughnessFactor;
+			float PI = 3.14159265359;
+			vec3 diffuseColor = baseColor * (1.0 - metallicFactor);
+			vec3 specularColor = F0;
+
 			for (int l = 0; l < numLights; l++) {
 				Light light = lights[l];
 
@@ -424,34 +431,20 @@ void main() {
 					float NdotL = max(dot(normal, dirToLight), 0.f);
 					attenuation = light.strength / (constant + linear * distToLight + quadratic * distToLight * distToLight); // inverse square falloff
 				} else if (light.lightType == 1) { // directional light
-					dirToLight = light.dir;
-
+					dirToLight = -light.dir;
+					attenuation = 1.f;
 					Hit shadowHit;
-					if (lineCast(activeRays[i].loc, -dirToLight, shadowHit)) {
+					if (lineCast(activeRays[i].loc, dirToLight, shadowHit)) {
 						continue; // skip this light since in shadow
-
 					}
 				}
 
-				vec3 baseColor = material.baseColorFactor.xyz;
-				if (material.hasBaseTexture == 1)
-					baseColor = texture(sampler2D(material.baseColorTexture), hitUV).rgb;
-
-				vec3 L = dirToLight;
-				vec3 viewDir = normalize(camPos - hit.hitLoc);
-				vec3 F0 = mix(vec3(0.04), baseColor, metallicFactor);
-				float alpha = roughnessFactor * roughnessFactor;
-				float PI = 3.14159265359;
-				vec3 diffuseColor = baseColor * (1.0 - metallicFactor);
-				vec3 specularColor = F0;
-
-				float NdotL = max(dot(normal, L), 0.0);
+				float NdotL = max(dot(normal, dirToLight), 0.0);
 				if (NdotL <= 0.0)
 					continue;
 
-
 				// GGX SPECULAR
-				vec3 H = normalize(viewDir + L);
+				vec3 H = normalize(viewDir + dirToLight);
 
 				float NdotH = max(dot(normal, H), 0.0);
 				float NdotV = max(dot(normal, viewDir), 0.0);
@@ -483,8 +476,12 @@ void main() {
 			}
 
 			// only decrease strength after all lights
-			if (!alreadySetStrength)
-				activeRays[i].strength *= reflectionEnergy / numLights;
+			if (!alreadySetStrength) {
+				float strengthDecay = 0.f;
+				strengthDecay = average(baseColor);
+				activeRays[i].strength *= clamp(strengthDecay, 0.f, 1.f);
+			}
+			
 			// deactivate ray if its too weak
 			if (length(activeRays[i].strength) < .01f)
 				activeRays[i].isActive = false;
