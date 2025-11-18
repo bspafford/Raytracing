@@ -117,9 +117,10 @@ void Renderer::NextFrame(GLuint texId, GLuint width, GLuint height, Camera* came
 	// copy OpenGL pixels to frame->data[0]
 	//memcpy(rgbFrame->data[0], bytes.data(), width * height * 4);
 	for (int y = 0; y < height; y++) {
+		int srcY = height - 1 - y;
 		memcpy(
 			rgbFrame->data[0] + y * rgbFrame->linesize[0],
-			bytes.data() + y * width * 4,
+			bytes.data() + srcY * width * 4,
 			width * 4
 		);
 	}

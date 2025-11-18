@@ -298,7 +298,7 @@ void main() {
 	const vec4 ambientColor = vec4(0.4431372549, 0.73725490196, 1, 1);
 	vec4 color = vec4(0, 0, 0, 1);
 	const int maxBounces = 10;
-	const uint activeRaysNum = 10;
+	const uint activeRaysNum = 1;
 	Ray activeRays[activeRaysNum];
 
 	// make multiple rays per pixel in grid pattern

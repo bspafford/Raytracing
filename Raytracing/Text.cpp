@@ -76,13 +76,13 @@ void Text::draw(Shader* shader, std::string text) {
 
         // Add a quad
         verts.insert(verts.end(), {
-            x0, y0, s0, t0,
+            x0, y1, s0, t1,
+            x1, y1, s1, t1,
             x1, y0, s1, t0,
-            x1, y1, s1, t1,
 
-            x0, y0, s0, t0,
-            x1, y1, s1, t1,
-            x0, y1, s0, t1
+            x0, y1, s0, t1,
+            x1, y0, s1, t0,
+            x0, y0, s0, t0
         });
 
         x += b->xadvance * scale;
