@@ -73,9 +73,9 @@ int Main::createWindow() {
 
 	glViewport(0, 0, screenSize.x, screenSize.y);
 
-	//glEnable(GL_CULL_FACE);
-	//glCullFace(GL_BACK);
-	//glFrontFace(GL_CCW);
+	glEnable(GL_CULL_FACE);
+	glCullFace(GL_BACK);
+	glFrontFace(GL_CCW);
 	glEnable(GL_BLEND);
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
@@ -179,7 +179,7 @@ void Main::Start() {
 
 	camera = new Camera(screenSize.x, screenSize.y, glm::vec3(-2, 2, 2));
 
-	Scene::LoadScene(computeShader, 1);
+	Scene::LoadScene(computeShader, 2);
 }
 
 void Main::Update(float deltaTime) {
@@ -235,6 +235,6 @@ void Main::KeyCallback(GLFWwindow* window, int key, int scancode, int action, in
 
 	if (key == GLFW_KEY_R && action == GLFW_PRESS) { // render
 		rayTraceEnabled = true;
-		Renderer::Start();
+		Renderer::Start(screenSize.x, screenSize.y);
 	}
 }

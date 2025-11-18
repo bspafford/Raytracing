@@ -541,7 +541,6 @@ std::vector<GPUBoundingBox> Model::BVH() {
 	GLuint meshOffset = 0;
 	GLuint materialOffset = 0;
 
-	int test = 0;
 	for (Model* model : instances) {
 		std::vector<MaterialData> materialData = model->getMaterialData();
 		for (MaterialData& material : materialData) {

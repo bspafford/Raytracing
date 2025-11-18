@@ -31,7 +31,6 @@ void Scene::LoadScene(ComputeShader* computeShader, int sceneIndex) {
 		break;
 	case 2:
 		Light(glm::vec3(0, 6.75254, 0), glm::vec3(0), LightType::Point, 30.f);
-		//new Light(glm::vec3(0), glm::vec3(0, -1, -1), LightType::Sun, 50.f);
 		new Model("models/scene2/scene2.gltf");
 		break;
 	case 3:
@@ -41,7 +40,6 @@ void Scene::LoadScene(ComputeShader* computeShader, int sceneIndex) {
 		break;
 	case 4:
 		Light(glm::vec3(0, 6.75254, 0), glm::vec3(1, -1, 1), LightType::Sun, 100.f);
-		//new Light(glm::vec3(0, 2, 0), glm::vec3(0, -1, 0), LightType::Sun, 30.f);
 		new Model("models/scene4/scene4.gltf");
 		break;
 	case 5:

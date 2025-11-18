@@ -168,7 +168,6 @@ public:
 
 	static inline std::vector<Model*> instances;
 
-	const char* file;
 private:
 	glm::vec3 pos = glm::vec3(0.f);
 	glm::vec3 scale = glm::vec3(1.f);
@@ -177,6 +176,8 @@ private:
 	// Variables for easy access
 	std::vector<unsigned char> data;
 	json JSON;
+
+	const char* file;
 
 	// All the meshes and transformations
 	std::vector<Mesh> meshes;
