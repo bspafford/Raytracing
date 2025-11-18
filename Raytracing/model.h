@@ -160,20 +160,21 @@ public:
 
 	static std::vector<GPUBoundingBox> BVH();
 	static BoundingBox* buildBVH(std::vector<Triangle*>::iterator begin, std::vector<Triangle*>::iterator end);
-	static std::pair<float, int> computeForAxis(std::vector<Triangle*>& tris, int axis);
+	static std::pair<float, int> computeForAxis(std::vector<Triangle*>::iterator begin, std::vector<Triangle*>::iterator end, std::vector<Triangle*>& tris, int axis);
 	static GLuint convertToGPU(BoundingBox* box, std::vector<GPUBoundingBox>& outList, std::unordered_map<Triangle*, int>& triangleMap);
 
 	static void DeleteAll();
+	static void DeleteBoundingBox(BoundingBox* box);
 
 	static inline std::vector<Model*> instances;
 
+	const char* file;
 private:
 	glm::vec3 pos = glm::vec3(0.f);
 	glm::vec3 scale = glm::vec3(1.f);
 	glm::vec3 color = glm::vec3(255);
 
 	// Variables for easy access
-	const char* file;
 	std::vector<unsigned char> data;
 	json JSON;
 

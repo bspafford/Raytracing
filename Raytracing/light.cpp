@@ -1,5 +1,7 @@
 #include "light.h"
 
+#include "debugger.h"
+
 Light::Light(glm::vec3 loc, glm::vec3 dir, int lightType, float strength) {
 	this->loc = loc;
 	this->dir = dir;

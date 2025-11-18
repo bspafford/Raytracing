@@ -3,6 +3,8 @@
 #include "VAO.h"
 #include "EBO.h"
 
+#include "debugger.h"
+
 Box::Box(glm::vec3 min, glm::vec3 max) {
 	instances.push_back(this);
 

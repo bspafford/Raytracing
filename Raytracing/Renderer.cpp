@@ -12,6 +12,8 @@
 #include <iomanip>
 #include <algorithm>
 
+#include "debugger.h"
+
 void Renderer::Start() {
 	// disable window resizing during rendering
 	renderering = true;

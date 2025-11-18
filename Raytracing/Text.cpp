@@ -6,6 +6,8 @@
 #define STB_TRUETYPE_IMPLEMENTATION
 #include "stb_truetype.h"
 
+#include "debugger.h"
+
 Text::Text() {
     // Load TTF font
     stbtt_fontinfo font;

@@ -12,6 +12,8 @@ class Box;
 
 class Main {
 public:
+	~Main();
+
 	int createWindow();
 
 	static glm::vec2 getScreenSize() { return screenSize; }
@@ -32,10 +34,6 @@ private:
 	static inline unsigned int quadTexture;
 
 	Camera* camera;
-	Light* light;
-	Model* cube;
-	Model* sphere;
-	Model* sphereFlat;
 
 	Shader* shader;
 	Shader* quadShader;

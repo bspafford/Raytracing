@@ -3,6 +3,8 @@
 
 #include <future>
 
+#include "debugger.h"
+
 Model::Model(const char* file) {
 	instances.push_back(this);
 
@@ -412,7 +414,9 @@ std::vector<Texture> Model::getLoadedTex() {
 }
 
 // bestCost, bestIndex
-std::pair<float, int> Model::computeForAxis(std::vector<Triangle*>& tris, int axis) {
+std::pair<float, int> Model::computeForAxis(std::vector<Triangle*>::iterator begin, std::vector<Triangle*>::iterator end, std::vector<Triangle*>& tris, int axis) {
+	tris = std::vector<Triangle*>(begin, end);
+
 	// sort on axis
 	std::sort(tris.begin(), tris.end(), [axis](const Triangle* a, const Triangle* b) {
 		return a->centroidLoc[axis] < b->centroidLoc[axis];
@@ -468,18 +472,14 @@ BoundingBox* Model::buildBVH(std::vector<Triangle*>::iterator begin, std::vector
 	if (size <= triangleCount)
 		return new BoundingBox(std::vector<Triangle*>(begin, end));
 
-	// precompute bounds
-	std::vector<glm::vec3> prefixMin(size), prefixMax(size);
-	std::vector<glm::vec3> suffixMin(size), suffixMax(size);
-	
 	std::vector<Triangle*> axisData[3];
-	for (int axis = 0; axis < 3; axis++)
-		axisData[axis] = std::vector<Triangle*>(begin, end);
+	//for (int axis = 0; axis < 3; axis++)
+		//axisData[axis] = std::vector<Triangle*>(begin, end);
 
 	// async for best axis
-	auto f0 = std::async(std::launch::async, computeForAxis, std::ref(axisData[0]), 0);
-	auto f1 = std::async(std::launch::async, computeForAxis, std::ref(axisData[1]), 1);
-	auto f2 = std::async(std::launch::async, computeForAxis, std::ref(axisData[2]), 2);
+	auto f0 = std::async(std::launch::async, &Model::computeForAxis, begin, end, std::ref(axisData[0]), 0);
+	auto f1 = std::async(std::launch::async, &Model::computeForAxis, begin, end, std::ref(axisData[1]), 1);
+	auto f2 = std::async(std::launch::async, &Model::computeForAxis, begin, end, std::ref(axisData[2]), 2);
 
 	std::pair<float, int> r0 = f0.get();
 	std::pair<float, int> r1 = f1.get();
@@ -493,8 +493,20 @@ BoundingBox* Model::buildBVH(std::vector<Triangle*>::iterator begin, std::vector
 	auto& sorted = axisData[bestAxis];
 
 	// recurse
-	BoundingBox* left = buildBVH(sorted.begin(), sorted.begin() + bestIndex);
-	BoundingBox* right = buildBVH(sorted.begin() + bestIndex, sorted.end());
+	BoundingBox* left = nullptr;
+	BoundingBox* right = nullptr;
+
+	int threshold = 10000;
+	if (size > threshold) {
+		auto leftFuture = std::async(std::launch::async, [&]() {
+			return buildBVH(sorted.begin(), sorted.begin() + bestIndex);
+		});
+		right = buildBVH(sorted.begin() + bestIndex, sorted.end());
+		left = leftFuture.get();
+	} else {
+		left = buildBVH(sorted.begin(), sorted.begin() + bestIndex);
+		right = buildBVH(sorted.begin() + bestIndex, sorted.end());
+	}
 
 	// build bounding box parents
 	return new BoundingBox(left, right);
@@ -593,7 +605,24 @@ std::vector<GPUBoundingBox> Model::BVH() {
 	SSBO::Bind(BVHList.data(), BVHList.size() * sizeof(GPUBoundingBox), 3);
 	SSBO::Bind(triangleList.data(), triangleList.size() * sizeof(Triangle), 4);
 
+	// delete
+	for (int i = 0; i < triangles.size(); i++)
+		delete triangles[i];
+	DeleteBoundingBox(box);
+
 	return BVHList;
+}
+
+void Model::DeleteBoundingBox(BoundingBox* box) {
+	if (!box->left && !box->right) {
+		delete box;
+		return;
+	}
+	if (box->left)
+		DeleteBoundingBox(box->left);
+	if (box->right)
+		DeleteBoundingBox(box->right);
+	delete box;
 }
 
 void Model::DeleteAll() {

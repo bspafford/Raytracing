@@ -2,6 +2,8 @@
 #include "shaderClass.h"
 #include <glm/gtc/type_ptr.hpp>
 
+#include "debugger.h"
+
 ComputeShader::ComputeShader(const char* filePath) {
 	std::string computeCode = get_file_contents(filePath);
 

@@ -1,6 +1,8 @@
 #include"Camera.h"
 #include "Renderer.h"
 
+#include "debugger.h"
+
 Camera::Camera(int width, int height, glm::vec3 position) {
 	this->width = width;
 	this->height = height;

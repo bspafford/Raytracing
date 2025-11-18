@@ -10,8 +10,9 @@ public:
 
 	static int getCurrSceneIndex() { return currSceneIndex; };
 
-private:
 	static void UnloadScene();
+
+private:
 	static void LoadGPUData(ComputeShader* computeShader);
 
 	static inline int currSceneIndex;

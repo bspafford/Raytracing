@@ -4,6 +4,8 @@
 #include "SSBO.h"
 #include "Box.h"
 
+#include "debugger.h"
+
 void Scene::UnloadScene() {
 	Model::DeleteAll();
 	Light::DeleteAll();
@@ -18,7 +20,8 @@ void Scene::LoadScene(ComputeShader* computeShader, int sceneIndex) {
 
 	switch(sceneIndex) {
 	case 1:
-		new Light(glm::vec3(0, 5, 0), glm::vec3(0), LightType::Point, 50.f);
+		Light(glm::vec3(2, 5, 0), glm::vec3(0), LightType::Point, 50.f);
+		Light(glm::vec3(-2, 5, 0), glm::vec3(0), LightType::Point, 50.f);
 		new Model("models/sphere/sphere.gltf");
 		new Model("models/cube/cube.gltf");
 		new Model("models/sphere1/sphere.gltf");
@@ -27,26 +30,26 @@ void Scene::LoadScene(ComputeShader* computeShader, int sceneIndex) {
 		new Model("models/roughSphere/roughSphere.gltf");
 		break;
 	case 2:
-		new Light(glm::vec3(0, 6.75254, 0), glm::vec3(0), LightType::Point, 30.f);
+		Light(glm::vec3(0, 6.75254, 0), glm::vec3(0), LightType::Point, 30.f);
 		//new Light(glm::vec3(0), glm::vec3(0, -1, -1), LightType::Sun, 50.f);
 		new Model("models/scene2/scene2.gltf");
 		break;
 	case 3:
-		new Light(glm::vec3(0, 6.75254, 0), glm::vec3(0), LightType::Point, 100.f);
+		Light(glm::vec3(0, 6.75254, 0), glm::vec3(0), LightType::Point, 100.f);
 		new Model("models/box/box.gltf");
 		new Model("models/roughSphere/roughSphere.gltf");
 		break;
 	case 4:
-		new Light(glm::vec3(0, 6.75254, 0), glm::vec3(1, -1, 1), LightType::Sun, 100.f);
+		Light(glm::vec3(0, 6.75254, 0), glm::vec3(1, -1, 1), LightType::Sun, 100.f);
 		//new Light(glm::vec3(0, 2, 0), glm::vec3(0, -1, 0), LightType::Sun, 30.f);
 		new Model("models/scene4/scene4.gltf");
 		break;
 	case 5:
-		new Light(glm::vec3(0, 6.75254, 0), glm::vec3(1, -1, 1), LightType::Sun, 100.f);
+		Light(glm::vec3(0, 6.75254, 0), glm::vec3(1, -1, 1), LightType::Sun, 100.f);
 		new Model("models/burger/burger.gltf");
 		break;
 	case 6:
-		new Light(glm::vec3(0, 6.75254, 0), glm::vec3(1, -1, 1), LightType::Sun, 100.f);
+		Light(glm::vec3(0, 6.75254, 0), glm::vec3(1, -1, 1), LightType::Sun, 100.f);
 		new Model("models/Dragon/Dragon.gltf");
 		break;
 	}

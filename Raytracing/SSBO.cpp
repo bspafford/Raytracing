@@ -1,5 +1,7 @@
 #include "SSBO.h"
 
+#include "debugger.h"
+
 void SSBO::Bind(const void* data, GLuint size, GLuint slot) {
 	GLuint ID;
 	// create

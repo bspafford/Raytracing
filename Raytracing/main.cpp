@@ -6,9 +6,15 @@
 #include "Scene.h"
 #include "Renderer.h"
 
+#include "debugger.h"
+
 int main() {
+	_CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF);
+
 	Main* _main = new Main();
-	return _main->createWindow();
+	int error = _main->createWindow();
+	delete _main;
+	return error;
 }
 
 void Main::setupQuad() {
@@ -137,7 +143,7 @@ int Main::createWindow() {
 		} else { // render rasterized
 			glEnable(GL_DEPTH_TEST);
 			glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-			shader->setVec3("lightDir", glm::normalize(glm::vec3(cos(time), 0.75, sin(time))));
+			//shader->setVec3("lightDir", glm::normalize(glm::vec3(cos(time), 0.75, sin(time))));
 			DrawModels(shader);
 		}
 
@@ -151,6 +157,16 @@ int Main::createWindow() {
 	glfwDestroyWindow(window);
 	glfwTerminate();
 	return 0;
+}
+
+Main::~Main() {
+	delete shader;
+	delete quadShader;
+	delete textShader;
+	delete computeShader;
+	delete camera;
+
+	Scene::UnloadScene();
 }
 
 void Main::Start() {
