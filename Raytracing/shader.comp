@@ -394,7 +394,7 @@ void main() {
 						alreadySetStrength = true;
 					} else { // start refract
 						activeRays[i].dir = refract(activeRays[i].dir, normal, iorAir / material.ior);
-						activeRays[i].loc = hit.hitLoc - activeRays[i].dir * 1e-5;
+						activeRays[i].loc = hit.hitLoc - normal * 1e-5;
 						activeRays[i].strength *= (1 - reflectionStrength) * material.transmissionFactor;
 						activeRays[i].refracting = true;
 						alreadySetStrength = true;
@@ -406,12 +406,12 @@ void main() {
 					//vec3 absorption = vec3(1, 0, 0); // hardcoded absorption coefficient
 					//activeRays[i].strength *= exp(-(vec3(1) - absorption) * distanceInMedium); // account for absorption
 					vec3 newDir = refract(activeRays[i].dir, -normal, material.ior / iorAir);
-
+					
 					// Total Internal Reflection
 					if (length(newDir) == 0.f) {
 						// reflect on inside of object
 						activeRays[i].dir = reflect(activeRays[i].dir, -normal);
-						activeRays[i].loc = hit.hitLoc - activeRays[i].dir * 1e-5;
+						activeRays[i].loc = hit.hitLoc - normal * 1e-5;
 						activeRays[i].refracting = true;
 					} else {
 						activeRays[i].loc = newLoc;
@@ -426,7 +426,7 @@ void main() {
 			if (shouldReflect) { // makes sure the ray wasn't already updated
 				vec3 newDir = sampleGGX(normal, hash13(vec3(pixel, i * bounce) * activeRays[i].dir + activeRays[i].loc), hash13(vec3(pixel * 37.f, (i * bounce) * 37.f) * activeRays[i].dir + activeRays[i].loc), roughnessFactor);
 				activeRays[i].dir = reflect(activeRays[i].dir, newDir);
-				activeRays[i].loc = hit.hitLoc + (activeRays[i].dir * 1e-5);
+				activeRays[i].loc = hit.hitLoc + (normal * 1e-5);
 			}
 
 			// lighting / color
