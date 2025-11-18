@@ -126,6 +126,7 @@ int Main::createWindow() {
 			computeShader->setMat4("invView", glm::inverse(camera->view));
 			computeShader->setFloat("aspect", screenSize.x / screenSize.y);
 			computeShader->setFloat("fov", camera->FOVdeg);
+			computeShader->setFloat("time", time);
 			
 			glDispatchCompute((screenSize.x + 15) / 16, (screenSize.y + 15) / 16, 1); // simple strat to make somethiung like width = 500 into 512 which is divisible by 16
 			// make sure writing to image has finished before read
@@ -177,7 +178,7 @@ void Main::Start() {
 	textShader = new Shader("textShader.vert", "textShader.frag");
 	computeShader = new ComputeShader("shader.comp");
 
-	camera = new Camera(screenSize.x, screenSize.y, glm::vec3(-2, 2, 2));
+	camera = new Camera(screenSize.x, screenSize.y, glm::vec3(0.001, 3.5, 14));
 
 	Scene::LoadScene(computeShader, 2);
 }
