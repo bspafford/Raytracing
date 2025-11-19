@@ -1,8 +1,9 @@
 #version 430 core
 #extension GL_ARB_bindless_texture : enable
 #extension GL_ARB_gpu_shader_int64 : enable
+#extension GL_NV_shader_atomic_float : enable
 
-layout (local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
+layout (local_size_x = 8, local_size_y = 8, local_size_z = 1) in;
 	
 // images 
 layout(rgba32f, binding = 0) uniform image2D imgOutput;
@@ -92,6 +93,9 @@ uniform mat4 invView;
 uniform float aspect;
 uniform float fov;
 
+uniform int raysPerPixel;
+uniform int maxBounces;
+
 bool RayIntersectsTriangle(vec3 orig, vec3 dir, vec3 v0, vec3 v1, vec3 v2, out vec3 hitLoc) {
     vec3 e1 = v1 - v0;
     vec3 e2 = v2 - v0;
@@ -139,10 +143,6 @@ vec3 barycentric(Hit hit) {
     float w = (d00 * d21 - d01 * d20) / denom;
     float u = 1.0 - v - w;
     return vec3(u, v, w);
-}
-
-float average(vec3 v) {
-	return (v.x + v.y + v.z) / 3.f;
 }
 
 float hash13(vec3 p)
@@ -288,8 +288,8 @@ bool lineCast(vec3 startPos, vec3 startDir, out Hit hit) {
 }
 
 void main() {
-    const ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
-    const ivec2 size = imageSize(imgOutput);
+	const ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
+	const ivec2 size = imageSize(imgOutput);
 
 	if (pixel.x >= size.x || pixel.y >= size.y) return;
 
@@ -297,44 +297,35 @@ void main() {
 	//const vec4 ambientColor = hasSun ? vec4(0.4431372549, 0.73725490196, 1, 1) : vec4(0, 0, 0, 1);
 	const vec4 ambientColor = vec4(0.4431372549, 0.73725490196, 1, 1);
 	vec4 color = vec4(0, 0, 0, 1);
-	const int maxBounces = 10;
-	const uint activeRaysNum = 1;
-	Ray activeRays[activeRaysNum];
+	const float rayStrengthCutoff = .01f / float(raysPerPixel);
+	const float initialRayStrength = 1.f / float(raysPerPixel);
 
-	// make multiple rays per pixel in grid pattern
-	for (int i = 0; i < activeRaysNum; i++) {
-		int N = int(ceil(sqrt(float(activeRaysNum))));
-    
+	float sqrtActiveRaysNum = sqrt(float(raysPerPixel));
+	int N = int(ceil(sqrtActiveRaysNum));
+
+	for (int r = 0; r < raysPerPixel; ++r) {
+		// make ray in grid pattern
 		// grid coordinates
-		ivec2 g = ivec2(i % N, i / N);
-
+		ivec2 g = ivec2(r % N, r / N);
 		// normalize to 0–1 inside the pixel
 		vec2 jitter = (vec2(g) + 0.5) / float(N);
-
 		// apply offset
 		vec2 uv = (vec2(pixel) + jitter) / vec2(size) * 2.0 - 1.0;
 		uv.x *= aspect;
-
 		float px = uv.x * tan(radians(fov) / 2.0);
 		float py = uv.y * tan(radians(fov) / 2.0);
-
-		vec3 rayDir = normalize(camForward + px * camRight + py * camUp);
-
-		int sqrtN = int(sqrt(activeRaysNum));
-
-		activeRays[i] = Ray(camPos, rayDir, vec3(1.f / float(activeRaysNum)), false, true);
-	}
-
-	for (int bounce = 0; bounce < maxBounces; ++bounce) {
-		for (int i = 0; i < activeRaysNum; i++) { // min(rayTailPtr, activeRaysNum)
-			if (!activeRays[i].isActive) // skips rays that already hit nothing
+		vec3 rayDir = (camForward + px * camRight + py * camUp);
+		Ray ray = Ray(camPos, rayDir, vec3(initialRayStrength), false, true);
+		for (int bounce = 0; bounce < maxBounces; ++bounce) {
+			if (!ray.isActive) // skips rays that already hit nothing
 				continue;
 
 			Hit hit;
 			// ambient lighting
-			if (!lineCast(activeRays[i].loc, activeRays[i].dir, hit)) {
-				color.rgb += ambientColor.rgb * activeRays[i].strength;
-				activeRays[i].isActive = false;
+			if (!lineCast(ray.loc, ray.dir, hit)) {
+				color.rgb += ambientColor.rgb * ray.strength;
+				//memoryBarrier();
+				ray.isActive = false;
 				continue;
 			}
 
@@ -347,7 +338,7 @@ void main() {
 			vec3 n1 = vec3(meshProj[hit.triangle.meshIndex] * vec4(vertices[i1].normal, 0.f));
 			vec3 n2 = vec3(meshProj[hit.triangle.meshIndex] * vec4(vertices[i2].normal, 0.f));
 			vec3 n3 = vec3(meshProj[hit.triangle.meshIndex] * vec4(vertices[i3].normal, 0.f));
-			vec3 hitNormal = normalize(n1 * bary.x + n2 * bary.y + n3 * bary.z);
+			vec3 hitNormal = (n1 * bary.x + n2 * bary.y + n3 * bary.z);
 
 			vec2 uv1 = vertices[i1].texUV;
 			vec2 uv2 = vertices[i2].texUV;
@@ -386,37 +377,37 @@ void main() {
 			bool shouldReflect = true; // tell roughness reflect to happen
 			if (material.transmissionFactor > 0) { // ray hit transmissive object
 				float iorAir = 1.f;
-				float reflectionStrength = fresnelReflectance(activeRays[i].dir, normal, iorAir, material.ior);
-				if (!activeRays[i].refracting) {
-					float rand = hash13(vec3(pixel * 2.3f, i * bounce * 18.f) * activeRays[i].dir + activeRays[i].loc);
+				float reflectionStrength = fresnelReflectance(ray.dir, normal, iorAir, material.ior);
+				if (!ray.refracting) {
+					float rand = hash13(vec3(pixel * 2.3f, r * bounce * 18.f) * ray.dir + ray.loc);
 					if (rand < reflectionStrength) { // reflect
-						activeRays[i].strength *= reflectionStrength;
+						ray.strength *= reflectionStrength;
 						alreadySetStrength = true;
 					} else { // start refract
-						activeRays[i].dir = refract(activeRays[i].dir, normal, iorAir / material.ior);
-						activeRays[i].loc = hit.hitLoc - normal * 1e-5;
-						activeRays[i].strength *= (1 - reflectionStrength) * material.transmissionFactor;
-						activeRays[i].refracting = true;
+						ray.dir = refract(ray.dir, normal, iorAir / material.ior);
+						ray.loc = hit.hitLoc - normal * 1e-5;
+						ray.strength *= (1 - reflectionStrength) * material.transmissionFactor;
+						ray.refracting = true;
 						alreadySetStrength = true;
 						shouldReflect = false;
 					}
 				} else { // do exit refraction or internal reflection if ray is inside
 					vec3 newLoc = hit.hitLoc + normal * 1e-5;
-					//float distanceInMedium = distance(activeRays[i].loc, newLoc);
+					//float distanceInMedium = distance(ray.loc, newLoc);
 					//vec3 absorption = vec3(1, 0, 0); // hardcoded absorption coefficient
-					//activeRays[i].strength *= exp(-(vec3(1) - absorption) * distanceInMedium); // account for absorption
-					vec3 newDir = refract(activeRays[i].dir, -normal, material.ior / iorAir);
+					//ray.strength *= exp(-(vec3(1) - absorption) * distanceInMedium); // account for absorption
+					vec3 newDir = refract(ray.dir, -normal, material.ior / iorAir);
 					
 					// Total Internal Reflection
 					if (length(newDir) == 0.f) {
 						// reflect on inside of object
-						activeRays[i].dir = reflect(activeRays[i].dir, -normal);
-						activeRays[i].loc = hit.hitLoc - normal * 1e-5;
-						activeRays[i].refracting = true;
+						ray.dir = reflect(ray.dir, -normal);
+						ray.loc = hit.hitLoc - normal * 1e-5;
+						ray.refracting = true;
 					} else {
-						activeRays[i].loc = newLoc;
-						activeRays[i].dir = newDir;
-						activeRays[i].refracting = false;
+						ray.loc = newLoc;
+						ray.dir = newDir;
+						ray.refracting = false;
 					}
 					shouldReflect = false;
 				}
@@ -424,9 +415,9 @@ void main() {
 
 			// roughness
 			if (shouldReflect) { // makes sure the ray wasn't already updated
-				vec3 newDir = sampleGGX(normal, hash13(vec3(pixel, i * bounce) * activeRays[i].dir + activeRays[i].loc), hash13(vec3(pixel * 37.f, (i * bounce) * 37.f) * activeRays[i].dir + activeRays[i].loc), roughnessFactor);
-				activeRays[i].dir = reflect(activeRays[i].dir, newDir);
-				activeRays[i].loc = hit.hitLoc + (normal * 1e-5);
+				vec3 newDir = sampleGGX(normal, hash13(vec3(pixel, r * bounce) * ray.dir + ray.loc), hash13(vec3(pixel * 37.f, (r * bounce) * 37.f) * ray.dir + ray.loc), roughnessFactor);
+				ray.dir = reflect(ray.dir, newDir);
+				ray.loc = hit.hitLoc + (normal * 1e-5);
 			}
 
 			// lighting / color
@@ -445,6 +436,7 @@ void main() {
 
 				vec3 dirToLight = vec3(0.f);
 				float attenuation = 1.f;
+
 				if (light.lightType == 0) { // point light
 					dirToLight = normalize(light.loc - hit.hitLoc);
 					float distToLight = length(light.loc - hit.hitLoc);
@@ -453,7 +445,7 @@ void main() {
 					Hit shadowHit;
 					bool inShadow = false;
 					float shadowTransmission = 1.f; // value of transmissionFactor of objects in between
-					if (lineCast(activeRays[i].loc, dirToLight, shadowHit)) {
+					if (lineCast(ray.loc, dirToLight, shadowHit)) {
 						if (distance(shadowHit.hitLoc, hit.hitLoc) < distToLight) {
 							continue; // skip this light since in shadow
 						}
@@ -462,14 +454,12 @@ void main() {
 					float constant = 1.f;
 					float quadratic = 1.f;
 					float linear = 1.f;
-
-					float NdotL = max(dot(normal, dirToLight), 0.f);
 					attenuation = light.strength / (constant + linear * distToLight + quadratic * distToLight * distToLight); // inverse square falloff
 				} else if (light.lightType == 1) { // directional light
 					dirToLight = -light.dir;
 					attenuation = 1.f;
 					Hit shadowHit;
-					if (lineCast(activeRays[i].loc, dirToLight, shadowHit)) {
+					if (lineCast(ray.loc, dirToLight, shadowHit)) {
 						continue; // skip this light since in shadow
 					}
 				}
@@ -507,20 +497,17 @@ void main() {
 				// Final Light Accumulation
 				vec3 radiance = light.color * attenuation;
 
-				color.rgb += (diffuse + specular) * radiance * NdotL * activeRays[i].strength;
+				color.rgb += (diffuse + specular) * radiance * NdotL * ray.strength;
 			}
 
 			// only decrease strength after all lights
-			if (!alreadySetStrength) {
-				float strengthDecay = average(baseColor);
-				activeRays[i].strength *= clamp(strengthDecay, 0.f, 1.f);
-			}
+			if (!alreadySetStrength)
+				ray.strength *= clamp(baseColor, 0.f, 1.f);
 			
 			// deactivate ray if its too weak
-			if (length(activeRays[i].strength) < .01f / float(activeRaysNum))
-				activeRays[i].isActive = false;
+			if (length(ray.strength) < rayStrengthCutoff)
+				ray.isActive = false;
 		}
 	}
-
-	imageStore(imgOutput, pixel, color);
+	imageStore(imgOutput, pixel, color);	
 }

@@ -102,11 +102,14 @@ int Main::createWindow() {
 		float deltaTime = std::chrono::duration<float>(currentTime - lastTime).count();
 		lastTime = currentTime;
 		time += deltaTime;
-		//std::cout << "fps: " << 1.f / deltaTime << "\n"; // 300, 2000, 3000
+		std::cout << "fps: " << 1.f / deltaTime << "\n"; // 300, 2000, 3000
 
 		glfwPollEvents();
 
 		Update(deltaTime);
+
+		std::vector<glm::vec4> colors(screenSize.x * screenSize.y);
+		SSBO::Bind(colors.data(), colors.size() * sizeof(glm::vec4), 6);
 
 		if (rayTraceEnabled) { // render raytraced
 			glDisable(GL_DEPTH_TEST);
@@ -128,7 +131,14 @@ int Main::createWindow() {
 			computeShader->setFloat("fov", camera->FOVdeg);
 			computeShader->setFloat("time", time);
 			
-			glDispatchCompute((screenSize.x + 15) / 16, (screenSize.y + 15) / 16, 1); // simple strat to make somethiung like width = 500 into 512 which is divisible by 16
+			int sizeX = 8;
+			int sizeY = 8;
+			int raysPerPixel = 10;
+			int maxBounces = 10;
+			computeShader->setInt("raysPerPixel", raysPerPixel);
+			computeShader->setInt("maxBounces", maxBounces);
+
+			glDispatchCompute((screenSize.x + (sizeX - 1)) / sizeX, (screenSize.y + (sizeY - 1)) / sizeY, 1);
 			// make sure writing to image has finished before read
 			glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
 

@@ -30,7 +30,7 @@ void Scene::LoadScene(ComputeShader* computeShader, int sceneIndex) {
 		new Model("models/roughSphere/roughSphere.gltf");
 		break;
 	case 2:
-		Light(glm::vec3(0, 6.75254, 0), glm::vec3(0), LightType::Point, 30.f);
+		Light(glm::vec3(0, 6.75254, 0), glm::vec3(0), LightType::Point, 10.f);
 		new Model("models/scene2/scene2.gltf");
 		break;
 	case 3:
