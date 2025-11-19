@@ -18,6 +18,8 @@ public:
 
 	static glm::vec2 getScreenSize() { return screenSize; }
 
+	static inline bool rayTraceEnabled = true;
+
 private:
 	void Start();
 	void Update(float deltaTime);
@@ -44,6 +46,4 @@ private:
 	GLuint quadVBO;
 	void setupQuad();
 	void renderQuad();
-
-	static inline bool rayTraceEnabled = true;
 };

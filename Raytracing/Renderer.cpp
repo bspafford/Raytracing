@@ -3,6 +3,7 @@
 #include "Scene.h"
 #include "shaderClass.h"
 #include "Text.h"
+#include "main.h"
 
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "stb_image_write.h"
@@ -170,6 +171,8 @@ void Renderer::NextFrame(GLuint texId, GLuint width, GLuint height, Camera* came
 
 void Renderer::Finished() {
 	renderering = false;
+
+	Main::rayTraceEnabled = false; // disable raytracing when finished rendering
 
 	avcodec_send_frame(codecContext, nullptr); // flush
 	while (avcodec_receive_packet(codecContext, pkt) == 0) {

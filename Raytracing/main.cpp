@@ -108,9 +108,6 @@ int Main::createWindow() {
 
 		Update(deltaTime);
 
-		std::vector<glm::vec4> colors(screenSize.x * screenSize.y);
-		SSBO::Bind(colors.data(), colors.size() * sizeof(glm::vec4), 6);
-
 		if (rayTraceEnabled) { // render raytraced
 			glDisable(GL_DEPTH_TEST);
 			computeShader->Activate();
@@ -132,13 +129,24 @@ int Main::createWindow() {
 			computeShader->setFloat("time", time);
 			
 			int sizeX = 8;
-			int sizeY = 8;
+			int sizeY = 4;
 			int raysPerPixel = 10;
 			int maxBounces = 10;
 			computeShader->setInt("raysPerPixel", raysPerPixel);
 			computeShader->setInt("maxBounces", maxBounces);
 
-			glDispatchCompute((screenSize.x + (sizeX - 1)) / sizeX, (screenSize.y + (sizeY - 1)) / sizeY, 1);
+			const int tileSize = 64;
+			for (int ty = 0; ty < screenSize.y; ty += tileSize)
+				for (int tx = 0; tx < screenSize.x; tx += tileSize) {
+					computeShader->setVec2("offset", { tx, ty });
+
+					int tileWidth = tileSize < screenSize.x - tx ? tileSize : screenSize.x - tx;
+					int tileHeight = tileSize < screenSize.y - ty ? tileSize : screenSize.y - ty;
+					int groupsX = (tileWidth + sizeX - 1) / sizeX;
+					int groupsY = (tileHeight + sizeY - 1) / sizeY;
+
+					glDispatchCompute(groupsX, groupsY, 1);
+				}
 			// make sure writing to image has finished before read
 			glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
 
@@ -154,7 +162,6 @@ int Main::createWindow() {
 		} else { // render rasterized
 			glEnable(GL_DEPTH_TEST);
 			glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-			//shader->setVec3("lightDir", glm::normalize(glm::vec3(cos(time), 0.75, sin(time))));
 			DrawModels(shader);
 		}
 
