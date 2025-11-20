@@ -1,0 +1,515 @@
+#version 430 core
+#extension GL_ARB_bindless_texture : enable
+#extension GL_ARB_gpu_shader_int64 : enable
+#extension GL_NV_shader_atomic_float : enable
+
+layout (local_size_x = 8, local_size_y = 4, local_size_z = 1) in;
+	
+// images 
+layout(rgba32f, binding = 0) uniform image2D imgOutput;
+
+struct Vertex {
+	vec3 position;
+    vec3 normal;
+    vec3 color;
+    vec2 texUV;
+	vec4 tangent;
+};
+
+struct MaterialData {
+	vec4 baseColorFactor;
+
+	int64_t baseColorTexture;
+	int hasBaseTexture;
+	float transmissionFactor;
+
+	int64_t normalTexture;
+	int hasNormalTexture;
+	float metallicFactor;
+
+	int64_t metallicRoughnessTexture;
+	int hasMetallicRoughnessTexture;
+	float roughnessFactor;
+
+	float ior;
+	float pad1[3];
+};
+
+struct BoundingBox {
+	vec3 minLoc;
+	vec3 maxLoc;
+	uint isLeaf;
+	ivec4 children;
+};
+
+struct Triangle {
+	uvec3 indices;
+	vec3 p1;
+	vec3 p2;
+	vec3 p3;
+	vec3 centroidLoc;
+	vec3 minBounds;
+	vec3 maxBounds;
+	uint meshIndex;
+	uint materialIndex;
+	uint pad1[2];
+};
+
+struct Ray {
+	vec3 loc;
+	vec3 dir;
+	vec3 strength;
+	bool refracting;
+	bool isActive;
+};
+
+struct Light {
+	vec3 loc;
+	float strength;
+	vec3 dir;
+	uint lightType;
+	vec3 color;		float pad1;
+};
+
+// variables
+layout(std430, binding = 0) buffer VertexBuffer { Vertex vertices[]; };
+layout(std430, binding = 1) buffer MeshProj { mat4 meshProj[]; };
+layout(std430, binding = 2) buffer MaterialList { MaterialData materialList[]; };
+layout(std430, binding = 3) buffer BoundingBoxList { BoundingBox boundingBoxList[]; };
+layout(std430, binding = 4) buffer Triangles { Triangle triangleList[]; };
+layout(std430, binding = 5) buffer Lights { Light lights[]; };
+
+uniform int numLights;
+uniform bool hasSun;
+
+uniform mat4 projection;
+uniform mat4 invProj;
+uniform vec3 camPos;
+uniform vec3 camForward;
+uniform vec3 camRight;
+uniform vec3 camUp;
+uniform mat4 view;
+uniform mat4 invView;
+uniform float aspect;
+uniform float fov;
+
+uniform int raysPerPixel;
+uniform int maxBounces;
+
+uniform vec2 offset;
+
+bool RayIntersectsTriangle(vec3 orig, vec3 dir, vec3 v0, vec3 v1, vec3 v2, out vec3 hitLoc) {
+    vec3 e1 = v1 - v0;
+    vec3 e2 = v2 - v0;
+    vec3 p = cross(dir, e2);
+    float det = dot(e1, p);
+    if (abs(det) < 1e-8) return false;
+
+    float invDet = 1.0 / det;
+    vec3 s = orig - v0;
+    float u = dot(s, p) * invDet;
+    if (u < 0.0 || u > 1.0) return false;
+
+    vec3 q = cross(s, e1);
+    float v = dot(dir, q) * invDet;
+    if (v < 0.0 || u + v > 1.0) return false;
+
+    float t = dot(e2, q) * invDet;
+    if (t < 1e-8) return false;
+
+    hitLoc = orig + dir * t;
+    return true;
+}
+
+struct Hit {
+	vec3 hitLoc;
+	Triangle triangle;
+};
+
+vec3 barycentric(Hit hit) {
+	vec3 p = hit.hitLoc;
+	vec3 a = hit.triangle.p1;
+	vec3 b = hit.triangle.p2;
+	vec3 c = hit.triangle.p3;
+	
+    vec3 v0 = b - a;
+    vec3 v1 = c - a;
+    vec3 v2 = p - a;
+    float d00 = dot(v0, v0);
+    float d01 = dot(v0, v1);
+    float d11 = dot(v1, v1);
+    float d20 = dot(v2, v0);
+    float d21 = dot(v2, v1);
+    float denom = d00 * d11 - d01 * d01;
+    float v = (d11 * d20 - d01 * d21) / denom;
+    float w = (d00 * d21 - d01 * d20) / denom;
+    float u = 1.0 - v - w;
+    return vec3(u, v, w);
+}
+
+float hash13(vec3 p)
+{
+    p = fract(p * 0.1031);
+    p += dot(p, p.yzx + 33.33);
+    return fract((p.x + p.y) * p.z);
+}
+
+float hash11(float x)
+{
+    const float K = 0.3183099;  // 1/pi
+    const float K2 = 0.3678794; // 1/e
+
+    x = fract(x * K);
+    x = x * x + x * K2;
+    x = x * x + x * K;
+    return fract(x);
+}
+
+bool intersectAABB(const vec3 rayOrigin, const vec3 rayDir, const vec3 aabbMin, const vec3 aabbMax) {
+    vec3 invDir = 1.0f / rayDir;
+
+    vec3 t0 = (aabbMin - rayOrigin) * invDir;
+    vec3 t1 = (aabbMax - rayOrigin) * invDir;
+
+    vec3 tmin = min(t0, t1);
+    vec3 tmax = max(t0, t1);
+
+    float tEnter = max(max(tmin.x, tmin.y), tmin.z);
+    float tExit  = min(min(tmax.x, tmax.y), tmax.z);
+
+    return tExit >= tEnter && tExit >= 0.0f;
+}
+
+float fresnelReflectance(vec3 I, vec3 N, float ior1, float ior2) {
+    float cosi = clamp(dot(-I, N), -1.0, 1.0);
+    float r0 = (ior1 - ior2) / (ior1 + ior2);
+    r0 = r0 * r0;
+    return r0 + (1.0 - r0) * pow(1.0 - cosi, 5.0);
+}
+
+vec3 sampleGGX(vec3 N, float rand1, float rand2, float alpha) {
+	if (alpha == 0.f)
+		return N;
+
+    // --- 0. Prevent degenerate parameters ---
+    rand1  = clamp(rand1, 0.0001, 0.9999);
+    rand2  = clamp(rand2, 0.0001, 0.9999);
+    alpha  = max(alpha, 0.0001);
+    float a2 = alpha * alpha;
+
+    // --- 1. GGX spherical sampling (tangent space) ---
+    float phi = 2.0 * 3.141592653589793 * rand1;
+
+    float denom = 1.0 + (a2 - 1.0) * rand2;
+    denom = max(denom, 0.000001);    // avoid division by zero
+
+    float cosTheta = sqrt((1.0 - rand2) / denom);
+    cosTheta = clamp(cosTheta, -1.0, 1.0);
+
+    float sinTheta = sqrt(max(0.0, 1.0 - cosTheta * cosTheta));
+
+    vec3 H_tangent = vec3(
+        sinTheta * cos(phi),
+        sinTheta * sin(phi),
+        cosTheta
+    );
+
+    // --- 2. Build a stable tangent basis around N ---
+    // Use a numerically stable method (Frisvad 2012)
+    vec3 T, B;
+    if (abs(N.z) < 0.999)
+        T = normalize(cross(vec3(0.0, 0.0, 1.0), N));
+    else
+        T = normalize(cross(vec3(1.0, 0.0, 0.0), N));
+
+    B = cross(N, T);
+
+    // --- 3. Transform tangent -> world space ---
+    vec3 H =
+        T * H_tangent.x +
+        B * H_tangent.y +
+        N * H_tangent.z;
+
+    float lenH = length(H);
+    if (lenH < 1e-6)   // fallback for degenerate cases
+        return N;
+
+    return H / lenH;
+}
+
+bool lineCast(vec3 startPos, vec3 startDir, out Hit hit) {
+	bool didHit = false;
+	float closestDist = 3.40282347e+38;
+	const uint stackSize = 64;
+	uint stack[stackSize];
+	uint stackPtr = 0;
+	stack[stackPtr++] = 0;
+
+	while (stackPtr > 0) {
+		uint nodeIndex = stack[--stackPtr];
+		BoundingBox node = boundingBoxList[nodeIndex];
+
+		// test left and right for AABB intersection
+		if (intersectAABB(startPos, startDir, node.minLoc, node.maxLoc)) {
+			// test triangle in leaf
+			if (node.isLeaf == 1) { // at leaf node
+				for (int i = 0; i < 4; i++) { // loop through 1-4 triangles 
+					if (node.children[i] != -1) {
+						Triangle triangle = triangleList[node.children[i]];
+
+						vec3 p1 = vec3(meshProj[triangle.meshIndex] * vec4(vertices[triangle.indices.x].position, 1.f));
+						vec3 p2 = vec3(meshProj[triangle.meshIndex] * vec4(vertices[triangle.indices.y].position, 1.f));
+						vec3 p3 = vec3(meshProj[triangle.meshIndex] * vec4(vertices[triangle.indices.z].position, 1.f));
+
+						vec3 _hitLoc;
+						if (RayIntersectsTriangle(startPos, startDir, p1, p2, p3, _hitLoc)) {
+							float newDist = dot(startPos - _hitLoc, startPos - _hitLoc);
+							if (newDist < closestDist) {
+								didHit = true;
+								hit.hitLoc = _hitLoc;
+								closestDist = newDist;
+
+								hit.triangle = triangle;
+							}
+						}
+					}
+				}
+			} else { // hit bounding box, not at leaf node
+				if (node.children.x != -1 && stackPtr < 64)
+					stack[stackPtr++] = node.children.x; // left child;
+				if (node.children.y != -1 && stackPtr < 64)
+					stack[stackPtr++] = node.children.y; // right child;
+			}
+		}
+	}
+
+	return didHit;
+}
+
+void main() {
+	const ivec2 pixel = ivec2(gl_GlobalInvocationID.xy + offset);
+	const ivec2 size = imageSize(imgOutput);
+
+	if (pixel.x >= size.x || pixel.y >= size.y) return;
+
+	// background color
+	const vec4 ambientColor = hasSun ? vec4(0.4431372549, 0.73725490196, 1, 1) : vec4(0, 0, 0, 1);
+	vec4 color = vec4(0, 0, 0, 1);
+	const float rayStrengthCutoff = .01f / float(raysPerPixel);
+	const float initialRayStrength = 1.f / float(raysPerPixel);
+
+	float sqrtActiveRaysNum = sqrt(float(raysPerPixel));
+	int N = int(ceil(sqrtActiveRaysNum));
+
+	for (int r = 0; r < raysPerPixel; ++r) {
+		// make ray in grid pattern
+		// grid coordinates
+		ivec2 g = ivec2(r % N, r / N);
+		// normalize to 0–1 inside the pixel
+		vec2 jitter = (vec2(g) + 0.5) / float(N);
+		// apply offset
+		vec2 uv = (vec2(pixel) + jitter) / vec2(size) * 2.0 - 1.0;
+		uv.x *= aspect;
+		float px = uv.x * tan(radians(fov) / 2.0);
+		float py = uv.y * tan(radians(fov) / 2.0);
+		vec3 rayDir = (camForward + px * camRight + py * camUp);
+		Ray ray = Ray(camPos, rayDir, vec3(initialRayStrength), false, true);
+		for (int bounce = 0; bounce < maxBounces; ++bounce) {
+			if (!ray.isActive) // skips rays that already hit nothing
+				continue;
+
+			Hit hit;
+			// ambient lighting
+			if (!lineCast(ray.loc, ray.dir, hit)) {
+				color.rgb += ambientColor.rgb * ray.strength;
+				//memoryBarrier();
+				ray.isActive = false;
+				continue;
+			}
+
+			uint i1 = hit.triangle.indices.x;
+			uint i2 = hit.triangle.indices.y;
+			uint i3 = hit.triangle.indices.z;
+
+			vec3 bary = barycentric(hit);
+
+			vec3 n1 = vec3(meshProj[hit.triangle.meshIndex] * vec4(vertices[i1].normal, 0.f));
+			vec3 n2 = vec3(meshProj[hit.triangle.meshIndex] * vec4(vertices[i2].normal, 0.f));
+			vec3 n3 = vec3(meshProj[hit.triangle.meshIndex] * vec4(vertices[i3].normal, 0.f));
+			vec3 hitNormal = (n1 * bary.x + n2 * bary.y + n3 * bary.z);
+
+			vec2 uv1 = vertices[i1].texUV;
+			vec2 uv2 = vertices[i2].texUV;
+			vec2 uv3 = vertices[i3].texUV;
+
+			vec2 hitUV = uv1 * bary.x + uv2 * bary.y + uv3 * bary.z;
+
+			MaterialData material = materialList[hit.triangle.materialIndex];
+
+			float metallicFactor;
+			float roughnessFactor;
+			if (material.hasMetallicRoughnessTexture == 1) {
+				metallicFactor = texture(sampler2D(material.metallicRoughnessTexture), hitUV).r;
+				roughnessFactor = texture(sampler2D(material.metallicRoughnessTexture), hitUV).g;
+			} else {
+				metallicFactor = material.metallicFactor;
+				roughnessFactor = material.roughnessFactor;
+			}
+
+			// normal map
+			vec3 normal;
+			if (material.hasNormalTexture == 1) {
+				vec3 tangent = (vertices[i1].tangent.xyz * bary.x + vertices[i2].tangent.xyz * bary.y + vertices[i3].tangent.xyz * bary.z);
+				float handedness = vertices[i1].tangent.w * bary.x + vertices[i2].tangent.w * bary.y + vertices[i3].tangent.w * bary.z;
+				vec3 normalTex = texture(sampler2D(material.normalTexture), hitUV).rgb * 2.0 - 1.0; // [0, 1] -> [-1, 1]
+				float normalStrength = 1.f;
+				normalTex.xy *= normalStrength;
+				vec3 bitangent = cross(hitNormal, tangent) * handedness;
+				mat3 TBN = mat3(tangent, bitangent, hitNormal);
+				normal = (TBN * normalTex);
+			} else
+				normal = hitNormal;
+
+			// reflect ray off object
+			bool shouldReflect = true; // tell roughness reflect to happen
+			if (material.transmissionFactor > 0) { // ray hit transmissive object
+				float iorAir = 1.f;
+				float reflectionStrength = fresnelReflectance(ray.dir, normal, iorAir, material.ior);
+				if (!ray.refracting) {
+					float rand = hash13(vec3(pixel * 2.3f, r * bounce * 18.f) * ray.dir + ray.loc);
+					if (rand > reflectionStrength) { // start refract
+						ray.dir = refract(ray.dir, normal, iorAir / material.ior);
+						ray.loc = hit.hitLoc - normal * 1e-5;
+						ray.strength *= material.transmissionFactor;
+						ray.refracting = true;
+						shouldReflect = false;
+					} // else it will reflect
+				} else { // do exit refraction or internal reflection if ray is inside
+					vec3 newLoc = hit.hitLoc + normal * 1e-5;
+					//float distanceInMedium = distance(ray.loc, newLoc);
+					//vec3 absorption = vec3(1, 0, 0); // hardcoded absorption coefficient
+					//ray.strength *= exp(-(vec3(1) - absorption) * distanceInMedium); // account for absorption
+					vec3 newDir = refract(ray.dir, -normal, material.ior / iorAir);
+					
+					// Total Internal Reflection
+					if (length(newDir) == 0.f) {
+						// reflect on inside of object
+						ray.dir = reflect(ray.dir, -normal);
+						ray.loc = hit.hitLoc - normal * 1e-5;
+						ray.refracting = true;
+					} else {
+						ray.loc = newLoc;
+						ray.dir = newDir;
+						ray.refracting = false;
+					}
+					shouldReflect = false;
+				}
+			}
+
+			// roughness
+			// reflects if transmission is 0 or the reflectionStrength was greater than rand
+			if (shouldReflect) { // makes sure the ray wasn't already updated
+				vec3 newDir = sampleGGX(normal, hash13(vec3(pixel, r * bounce) * ray.dir + ray.loc), hash13(vec3(pixel * 37.f, (r * bounce) * 37.f) * ray.dir + ray.loc), roughnessFactor);
+				ray.dir = reflect(ray.dir, newDir);
+				ray.loc = hit.hitLoc + (normal * 1e-5);
+			}
+
+			// lighting / color
+			vec3 baseColor = material.baseColorFactor.xyz;
+			if (material.hasBaseTexture == 1)
+				baseColor = texture(sampler2D(material.baseColorTexture), hitUV).rgb;
+
+			vec3 viewDir = normalize(camPos - hit.hitLoc);
+			// dielectric F0 from IOR (for non-metal)
+			float dielectricF0 = .04;
+			if (material.transmissionFactor > 0)
+				dielectricF0 = pow((material.ior - 1.0) / (material.ior + 1.0), 2.0);
+			// final F0: metals use baseColor, dielectrics use dielectricF0
+			vec3 F0 = mix(vec3(dielectricF0), baseColor, metallicFactor);
+			float alpha = roughnessFactor * roughnessFactor;
+			float PI = 3.14159265359;
+			vec3 diffuseColor = baseColor * (1.0 - metallicFactor);
+			vec3 specularColor = F0;
+
+			for (int l = 0; l < numLights; l++) {
+				Light light = lights[l];
+
+				vec3 dirToLight = vec3(0.f);
+				float attenuation = 1.f;
+
+				if (light.lightType == 0) { // point light
+					dirToLight = normalize(light.loc - hit.hitLoc);
+					float distToLight = length(light.loc - hit.hitLoc);
+
+					// check if light hit something, if not then its not in shadow, if it did, then make sure object hit before distance to light
+					Hit shadowHit;
+					bool inShadow = false;
+					float shadowTransmission = 1.f; // value of transmissionFactor of objects in between
+					if (lineCast(ray.loc, dirToLight, shadowHit)) {
+						if (distance(shadowHit.hitLoc, hit.hitLoc) < distToLight) {
+							continue; // skip this light since in shadow
+						}
+					}
+
+					float constant = 1.f;
+					float quadratic = 1.f;
+					float linear = 1.f;
+					attenuation = light.strength / (constant + linear * distToLight + quadratic * distToLight * distToLight); // inverse square falloff
+				} else if (light.lightType == 1) { // directional light
+					dirToLight = -light.dir;
+					attenuation = 1.f;
+					Hit shadowHit;
+					if (lineCast(ray.loc, dirToLight, shadowHit)) {
+						continue; // skip this light since in shadow
+					}
+				}
+
+				float NdotL = max(dot(normal, dirToLight), 0.0);
+				if (NdotL <= 0.0)
+					continue;
+
+				// GGX SPECULAR
+				vec3 H = normalize(viewDir + dirToLight);
+
+				float NdotH = max(dot(normal, H), 0.0);
+				float NdotV = max(dot(normal, viewDir), 0.0);
+				float HdotV = max(dot(H, viewDir), 0.0);
+
+				// Fresnel
+				// Schlick Fresnel using view angle (cos0 between N and view)
+				float cosTheta = clamp(dot(normal, -viewDir), 0.0, 1.0);
+				vec3 F = F0 + (1.0 - F0) * pow(1.0 - cosTheta, 5.0);
+
+				// GGX Normal Distribution
+				float a2 = alpha * alpha;
+				float denom = (NdotH * NdotH) * (a2 - 1.0) + 1.0;
+				float D = a2 / (PI * denom * denom);
+
+				// Geometry term (Smith)
+				float k = (alpha + 1) * (alpha + 1) / 8.0;
+				float G_V = NdotV / (NdotV * (1.0 - k) + k);
+				float G_L = NdotL / (NdotL * (1.0 - k) + k);
+				float G = G_V * G_L;
+
+				vec3 specular = (D * F * G) / (4.0 * NdotV * NdotL + 0.001);
+
+				// Lambertian Diffuse
+				vec3 diffuse = diffuseColor / PI;
+
+				// Final Light Accumulation
+				vec3 radiance = light.color * attenuation;
+
+				color.rgb += (diffuse + specular) * radiance * NdotL * ray.strength;
+			}
+
+			// only decrease strength after all lights
+			if (material.transmissionFactor == 0.f)
+				ray.strength *= clamp(baseColor, 0.f, 1.f);
+			
+			// deactivate ray if its too weak
+			if (length(ray.strength) < rayStrengthCutoff)
+				ray.isActive = false;
+		}
+	}
+	imageStore(imgOutput, pixel, color);	
+}

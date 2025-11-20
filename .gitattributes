@@ -1,1 +1,4 @@
 Raytracing/avcodec-62.dll filter=lfs diff=lfs merge=lfs -text
+Build/avcodec-62.dll filter=lfs diff=lfs merge=lfs -text
+Build/models filter=lfs diff=lfs merge=lfs -text
+avformat-62.dll filter=lfs diff=lfs merge=lfs -text
