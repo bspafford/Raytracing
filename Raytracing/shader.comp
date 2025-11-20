@@ -293,8 +293,7 @@ void main() {
 	if (pixel.x >= size.x || pixel.y >= size.y) return;
 
 	// background color
-	//const vec4 ambientColor = hasSun ? vec4(0.4431372549, 0.73725490196, 1, 1) : vec4(0, 0, 0, 1);
-	const vec4 ambientColor = vec4(0.4431372549, 0.73725490196, 1, 1);
+	const vec4 ambientColor = hasSun ? vec4(0.4431372549, 0.73725490196, 1, 1) : vec4(0, 0, 0, 1);
 	vec4 color = vec4(0, 0, 0, 1);
 	const float rayStrengthCutoff = .01f / float(raysPerPixel);
 	const float initialRayStrength = 1.f / float(raysPerPixel);

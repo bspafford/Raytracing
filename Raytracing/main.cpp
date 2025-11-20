@@ -8,6 +8,8 @@
 
 #include "debugger.h"
 
+#include <windows.h>
+
 int main() {
 	_CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF);
 
@@ -102,7 +104,7 @@ int Main::createWindow() {
 		float deltaTime = std::chrono::duration<float>(currentTime - lastTime).count();
 		lastTime = currentTime;
 		time += deltaTime;
-		std::cout << "fps: " << 1.f / deltaTime << "\n"; // 300, 2000, 3000
+		//std::cout << "fps: " << 1.f / deltaTime << "\n";
 
 		glfwPollEvents();
 
@@ -130,7 +132,7 @@ int Main::createWindow() {
 			
 			int sizeX = 8;
 			int sizeY = 4;
-			int raysPerPixel = 10;
+			int raysPerPixel = 1;
 			int maxBounces = 10;
 			computeShader->setInt("raysPerPixel", raysPerPixel);
 			computeShader->setInt("maxBounces", maxBounces);
@@ -195,7 +197,7 @@ void Main::Start() {
 	textShader = new Shader("textShader.vert", "textShader.frag");
 	computeShader = new ComputeShader("shader.comp");
 
-	camera = new Camera(screenSize.x, screenSize.y, glm::vec3(0.001, 3.5, 14));
+	camera = new Camera(screenSize.x, screenSize.y, glm::vec3(0.f, 3.5f, 14));
 
 	Scene::LoadScene(computeShader, 2);
 }
