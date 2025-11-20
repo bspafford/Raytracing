@@ -38,8 +38,9 @@ It also includes GLTF scene loading with support for switching between multiple 
 - **C++**
 - **OpenGL** (GLFW, Glad, GLM)
 - **Compute Shaders**
+
 <br>
-<br>
+
 ### How to play
 1. Clone the repo
     ```bash
