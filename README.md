@@ -42,12 +42,10 @@ It also includes GLTF scene loading with support for switching between multiple 
 <br>
 ### How to play
 1. Clone the repo
-
     ```bash
     Git clone https://github.com/bspafford/Raytracing
     ```
-    
 2. Open `Build` Folder
 3. Run `Raytracing.exe`
 
-![Image](thumbnail.png);
+![Image](thumbnail.png)
