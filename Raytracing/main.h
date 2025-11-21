@@ -2,6 +2,7 @@
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
 #include <glm/glm.hpp>
+#include <OpenImageDenoise/oidn.hpp>
 
 class Camera;
 class Light;
@@ -51,4 +52,12 @@ private:
 	GLuint quadVBO;
 	void setupQuad();
 	void renderQuad();
+
+	// oidn
+	oidn::FilterRef filter;
+	oidn::DeviceRef device;
+	oidn::BufferRef colorBuf;
+	oidn::BufferRef albedoBuf;
+	oidn::BufferRef normalBuf;
+	std::vector<float> rgbaTOrgb(std::vector<float>& rgba);
 };

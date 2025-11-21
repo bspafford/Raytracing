@@ -10,6 +10,8 @@ extern "C" {
 #include <libavutil/imgutils.h>
 }
 
+#include "Texture.h"
+
 class Camera;
 class Shader;
 class Text;
@@ -17,7 +19,7 @@ class Text;
 class Renderer {
 public:
 	static void Start(int width, int height);
-	static void NextFrame(GLuint texId, GLuint width, GLuint height, Camera* camera, Shader* textShader);
+	static void NextFrame(Texture tex, GLuint width, GLuint height, Camera* camera, Shader* textShader);
 
 	static bool isRenderering() { return renderering; };
 

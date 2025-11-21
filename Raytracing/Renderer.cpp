@@ -87,12 +87,13 @@ void Renderer::Start(int width, int height) {
 	pkt = av_packet_alloc();
 }
 
-void Renderer::NextFrame(GLuint texId, GLuint width, GLuint height, Camera* camera, Shader* textShader) {
+void Renderer::NextFrame(Texture tex, GLuint width, GLuint height, Camera* camera, Shader* textShader) {
 	if (!renderering)
 		return;
 
 	// read back texture from GPU
-	glBindTexture(GL_TEXTURE_2D, texId);
+	tex.Bind();
+
 	std::vector<float> floats(width * height * 4);
 	stbi_flip_vertically_on_write(true);
 	glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_FLOAT, floats.data());

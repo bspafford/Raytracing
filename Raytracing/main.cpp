@@ -8,8 +8,6 @@
 
 #include "debugger.h"
 
-#include <windows.h>
-
 int main() {
 	_CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF);
 
@@ -83,61 +81,12 @@ int Main::createWindow() {
 
 	Start();
 
-	// setup quad texture for Compute shader to write on
-	glGenTextures(1, &quadTexture);
-	glActiveTexture(GL_TEXTURE0);
-	glBindTexture(GL_TEXTURE_2D, quadTexture);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, screenSize.x, screenSize.y, 0, GL_RGBA, GL_FLOAT, NULL);
-	glBindImageTexture(0, quadTexture, 0, GL_FALSE, 0, GL_READ_WRITE, GL_RGBA32F);
-
-	// albedo texture
-	glGenTextures(1, &albedoTexture);
-	glActiveTexture(GL_TEXTURE0);
-	glBindTexture(GL_TEXTURE_2D, albedoTexture);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, screenSize.x, screenSize.y, 0, GL_RGBA, GL_FLOAT, NULL);
-	glBindImageTexture(1, albedoTexture, 0, GL_FALSE, 0, GL_READ_WRITE, GL_RGBA32F);
-
-	// normal map texture
-	glGenTextures(1, &normalTexture);
-	glActiveTexture(GL_TEXTURE0);
-	glBindTexture(GL_TEXTURE_2D, normalTexture);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, screenSize.x, screenSize.y, 0, GL_RGBA, GL_FLOAT, NULL);
-	glBindImageTexture(2, normalTexture, 0, GL_FALSE, 0, GL_READ_WRITE, GL_RGBA32F);
-
-	// depth texture
-	glGenTextures(1, &depthTexture);
-	glActiveTexture(GL_TEXTURE0);
-	glBindTexture(GL_TEXTURE_2D, depthTexture);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, screenSize.x, screenSize.y, 0, GL_RGBA, GL_FLOAT, NULL);
-	glBindImageTexture(3, depthTexture, 0, GL_FALSE, 0, GL_READ_WRITE, GL_RGBA32F);
-
-	// blurred image
-	glGenTextures(1, &blurredTexture);
-	glActiveTexture(GL_TEXTURE0);
-	glBindTexture(GL_TEXTURE_2D, blurredTexture);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, screenSize.x, screenSize.y, 0, GL_RGBA, GL_FLOAT, NULL);
-	glBindImageTexture(4, blurredTexture, 0, GL_FALSE, 0, GL_READ_WRITE, GL_RGBA32F);
-	glBindTexture(GL_TEXTURE_2D, 0); // unbind
+	// setup textures for Compute shader
+	Texture quadTexture(0, screenSize);
+	Texture albedoTexture(1, screenSize);
+	Texture normalTexture(2, screenSize);
+	Texture depthTexture(3, screenSize);
+	Texture blurredTexture(4, screenSize);
 
 	setupQuad();
 
@@ -176,7 +125,7 @@ int Main::createWindow() {
 			
 			int sizeX = 8;
 			int sizeY = 4;
-			int raysPerPixel = 1000;
+			int raysPerPixel = 1;
 			int maxBounces = 10;
 			computeShader->setInt("raysPerPixel", raysPerPixel);
 			computeShader->setInt("maxBounces", maxBounces);
@@ -196,14 +145,56 @@ int Main::createWindow() {
 			// make sure writing to image has finished before read
 			glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
 
-			denoisingShader->Activate();
-			glDispatchCompute(glm::ceil(screenSize.x / 8), glm::ceil(screenSize.y / 8), 1);
-			glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
+			// denoising
+			//denoisingShader->Activate();
+			//glDispatchCompute(glm::ceil(screenSize.x / 8), glm::ceil(screenSize.y / 8), 1);
+			//glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
+
+			// Fill the input image buffers
+			// color
+			int rgbaSize = screenSize.x * screenSize.y * 4;
+			int rgbSize = screenSize.x * screenSize.y * 3 * sizeof(float);
+			float* colorPtr = (float*)colorBuf.getData();
+			std::vector<float> rgbaCPU(rgbaSize);
+			quadTexture.Bind();
+			glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_FLOAT, rgbaCPU.data());
+			memcpy(colorPtr, rgbaTOrgb(rgbaCPU).data(), rgbSize);
+
+			// albedo
+			float* albedoPtr = (float*)albedoBuf.getData();
+			albedoTexture.Bind();
+			glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_FLOAT, rgbaCPU.data());
+			memcpy(albedoPtr, rgbaTOrgb(rgbaCPU).data(), rgbSize);
+
+			// normal
+			float* normalPtr = (float*)normalBuf.getData();
+			normalTexture.Bind();
+			glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_FLOAT, rgbaCPU.data());
+			memcpy(normalPtr, rgbaTOrgb(rgbaCPU).data(), rgbSize);
+
+			// Filter the beauty image
+			filter.execute();
+
+			// upload back to glTexture
+			quadTexture.Bind();
+			std::vector<float> rgba(rgbaSize);
+			for (int i = 0; i < screenSize.x * screenSize.y; i++) {
+				rgba[i*4+0] = colorPtr[i*3+0];
+				rgba[i*4+1] = colorPtr[i*3+1];
+				rgba[i*4+2] = colorPtr[i*3+2];
+				rgba[i*4+3] = 1.f;
+			}
+			glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, screenSize.x, screenSize.y, GL_RGBA, GL_FLOAT, rgba.data());
+
+			// Check for errors
+			const char* errorMessage;
+			if (device.getError(errorMessage) != oidn::Error::None)
+				std::cout << "Error: " << errorMessage << std::endl;
 
 			quadShader->Activate();
 			quadShader->setInt("tex", 0);
 			glActiveTexture(GL_TEXTURE0);
-			glBindTexture(GL_TEXTURE_2D, quadTexture);
+			quadTexture.Bind();
 			renderQuad();
 
 			Renderer::NextFrame(quadTexture, screenSize.x, screenSize.y, camera, textShader);
@@ -250,6 +241,22 @@ void Main::Start() {
 	camera = new Camera(screenSize.x, screenSize.y, glm::vec3(0.f, 3.5f, 14));
 
 	Scene::LoadScene(computeShader, 2);
+
+	// OIDN Setup
+	device = oidn::newDevice(oidn::DeviceType::CUDA);
+	device.commit();
+
+	colorBuf = device.newBuffer(screenSize.x * screenSize.y * 3 * sizeof(float));
+	albedoBuf = device.newBuffer(screenSize.x * screenSize.y * 3 * sizeof(float));
+	normalBuf = device.newBuffer(screenSize.x * screenSize.y * 3 * sizeof(float));
+
+	filter = device.newFilter("RT"); // generic ray tracing filter
+	filter.setImage("color", colorBuf, oidn::Format::Float3, screenSize.x, screenSize.y);	// beauty
+	filter.setImage("albedo", albedoBuf, oidn::Format::Float3, screenSize.x, screenSize.y);	// auxiliary
+	filter.setImage("normal", normalBuf, oidn::Format::Float3, screenSize.x, screenSize.y);	// auxiliary
+	filter.setImage("output", colorBuf, oidn::Format::Float3, screenSize.x, screenSize.y);	// denoised beauty
+	filter.set("hdr", true); // beauty image is HDR
+	filter.commit();
 }
 
 void Main::Update(float deltaTime) {
@@ -307,4 +314,14 @@ void Main::KeyCallback(GLFWwindow* window, int key, int scancode, int action, in
 		rayTraceEnabled = true;
 		Renderer::Start(screenSize.x, screenSize.y);
 	}
+}
+
+std::vector<float> Main::rgbaTOrgb(std::vector<float>& rgba) {
+	std::vector<float> rgb(rgba.size() / 4 * 3);
+	for (int i = 0; i < rgba.size() / 4; i++) {
+		rgb[i*3+0] = rgba[i*4+0];
+		rgb[i*3+1] = rgba[i*4+1];
+		rgb[i*3+2] = rgba[i*4+2];
+	}
+	return rgb;
 }
