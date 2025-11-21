@@ -151,5 +151,8 @@
     <None Include="textShader.vert">
       <Filter>Resource Files</Filter>
     </None>
+    <None Include="denoising.comp">
+      <Filter>Resource Files</Filter>
+    </None>
   </ItemGroup>
 </Project>

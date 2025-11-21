@@ -34,6 +34,10 @@ private:
 	static inline glm::vec2 screenSize = glm::vec2(800, 600);
 
 	static inline unsigned int quadTexture;
+	unsigned int albedoTexture;
+	unsigned int normalTexture;
+	unsigned int depthTexture;
+	unsigned int blurredTexture;
 
 	Camera* camera;
 
@@ -41,6 +45,7 @@ private:
 	Shader* quadShader;
 	Shader* textShader;
 	static inline ComputeShader* computeShader;
+	ComputeShader* denoisingShader;
 
 	GLuint quadVAO = 0;
 	GLuint quadVBO;

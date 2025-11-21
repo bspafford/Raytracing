@@ -92,8 +92,52 @@ int Main::createWindow() {
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, screenSize.x, screenSize.y, 0, GL_RGBA, GL_FLOAT, NULL);
-	glBindImageTexture(0, quadTexture, 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA32F);
-	glBindTexture(GL_TEXTURE_2D, 0);
+	glBindImageTexture(0, quadTexture, 0, GL_FALSE, 0, GL_READ_WRITE, GL_RGBA32F);
+
+	// albedo texture
+	glGenTextures(1, &albedoTexture);
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_2D, albedoTexture);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, screenSize.x, screenSize.y, 0, GL_RGBA, GL_FLOAT, NULL);
+	glBindImageTexture(1, albedoTexture, 0, GL_FALSE, 0, GL_READ_WRITE, GL_RGBA32F);
+
+	// normal map texture
+	glGenTextures(1, &normalTexture);
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_2D, normalTexture);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, screenSize.x, screenSize.y, 0, GL_RGBA, GL_FLOAT, NULL);
+	glBindImageTexture(2, normalTexture, 0, GL_FALSE, 0, GL_READ_WRITE, GL_RGBA32F);
+
+	// depth texture
+	glGenTextures(1, &depthTexture);
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_2D, depthTexture);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, screenSize.x, screenSize.y, 0, GL_RGBA, GL_FLOAT, NULL);
+	glBindImageTexture(3, depthTexture, 0, GL_FALSE, 0, GL_READ_WRITE, GL_RGBA32F);
+
+	// blurred image
+	glGenTextures(1, &blurredTexture);
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_2D, blurredTexture);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, screenSize.x, screenSize.y, 0, GL_RGBA, GL_FLOAT, NULL);
+	glBindImageTexture(4, blurredTexture, 0, GL_FALSE, 0, GL_READ_WRITE, GL_RGBA32F);
+	glBindTexture(GL_TEXTURE_2D, 0); // unbind
 
 	setupQuad();
 
@@ -104,7 +148,7 @@ int Main::createWindow() {
 		float deltaTime = std::chrono::duration<float>(currentTime - lastTime).count();
 		lastTime = currentTime;
 		time += deltaTime;
-		//std::cout << "fps: " << 1.f / deltaTime << "\n";
+		std::cout << "fps: " << 1.f / deltaTime << "\n";
 
 		glfwPollEvents();
 
@@ -132,7 +176,7 @@ int Main::createWindow() {
 			
 			int sizeX = 8;
 			int sizeY = 4;
-			int raysPerPixel = 1;
+			int raysPerPixel = 1000;
 			int maxBounces = 10;
 			computeShader->setInt("raysPerPixel", raysPerPixel);
 			computeShader->setInt("maxBounces", maxBounces);
@@ -150,6 +194,10 @@ int Main::createWindow() {
 					glDispatchCompute(groupsX, groupsY, 1);
 				}
 			// make sure writing to image has finished before read
+			glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
+
+			denoisingShader->Activate();
+			glDispatchCompute(glm::ceil(screenSize.x / 8), glm::ceil(screenSize.y / 8), 1);
 			glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
 
 			quadShader->Activate();
@@ -184,6 +232,7 @@ Main::~Main() {
 	delete quadShader;
 	delete textShader;
 	delete computeShader;
+	delete denoisingShader;
 	delete camera;
 
 	Scene::UnloadScene();
@@ -196,6 +245,7 @@ void Main::Start() {
 	quadShader = new Shader("quadShader.vert", "quadShader.frag");
 	textShader = new Shader("textShader.vert", "textShader.frag");
 	computeShader = new ComputeShader("shader.comp");
+	denoisingShader = new ComputeShader("denoising.comp");
 
 	camera = new Camera(screenSize.x, screenSize.y, glm::vec3(0.f, 3.5f, 14));
 

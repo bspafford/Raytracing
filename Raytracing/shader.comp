@@ -7,6 +7,9 @@ layout (local_size_x = 8, local_size_y = 4, local_size_z = 1) in;
 	
 // images 
 layout(rgba32f, binding = 0) uniform image2D imgOutput;
+layout(rgba32f, binding = 1) uniform image2D albedoOutput;
+layout(rgba32f, binding = 2) uniform image2D normalOutput;
+layout(rgba32f, binding = 3) uniform image2D depthOutput;
 
 struct Vertex {
 	vec3 position;
@@ -292,6 +295,11 @@ void main() {
 
 	if (pixel.x >= size.x || pixel.y >= size.y) return;
 
+	// texture data
+	vec3 albedoData = vec3(0);
+	vec3 firstHitNormalData = vec3(0);
+	float firstHitDepthData = 0.f;
+
 	// background color
 	const vec4 ambientColor = hasSun ? vec4(0.4431372549, 0.73725490196, 1, 1) : vec4(0, 0, 0, 1);
 	vec4 color = vec4(0, 0, 0, 1);
@@ -326,6 +334,10 @@ void main() {
 				ray.isActive = false;
 				continue;
 			}
+
+			// set depth texture data
+			if (r == 0 && bounce == 0)
+				firstHitDepthData = distance(camPos, hit.hitLoc);
 
 			uint i1 = hit.triangle.indices.x;
 			uint i2 = hit.triangle.indices.y;
@@ -369,6 +381,10 @@ void main() {
 				normal = (TBN * normalTex);
 			} else
 				normal = hitNormal;
+
+			// set normal texture
+			if (r == 0 && bounce == 0)
+				firstHitNormalData = normal;
 
 			// reflect ray off object
 			bool shouldReflect = true; // tell roughness reflect to happen
@@ -430,6 +446,9 @@ void main() {
 			float PI = 3.14159265359;
 			vec3 diffuseColor = baseColor * (1.0 - metallicFactor);
 			vec3 specularColor = F0;
+			
+			if (r == 0 && bounce == 0)
+				albedoData = diffuseColor;
 
 			for (int l = 0; l < numLights; l++) {
 				Light light = lights[l];
@@ -511,5 +530,9 @@ void main() {
 				ray.isActive = false;
 		}
 	}
-	imageStore(imgOutput, pixel, color);	
+	imageStore(imgOutput, pixel, color);
+	imageStore(albedoOutput, pixel, vec4(albedoData, 1));
+	imageStore(normalOutput, pixel, vec4(firstHitNormalData / 2.f + 0.5f, 1));
+	imageStore(depthOutput, pixel, vec4(vec3(firstHitDepthData / 255.f), 1));
+	
 }
