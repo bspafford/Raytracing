@@ -56,6 +56,8 @@ void Scene::LoadScene(ComputeShader* computeShader, int sceneIndex) {
 		break;
 	}
 
+	currSceneIndex = sceneIndex;
+
 	LoadGPUData(computeShader);
 }
 

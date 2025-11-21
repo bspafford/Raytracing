@@ -125,11 +125,6 @@ int Main::createWindow() {
 			
 			int sizeX = 8;
 			int sizeY = 4;
-			int raysPerPixel = 1;
-			int maxBounces = 10;
-			computeShader->setInt("raysPerPixel", raysPerPixel);
-			computeShader->setInt("maxBounces", maxBounces);
-
 			const int tileSize = 64;
 			for (int ty = 0; ty < screenSize.y; ty += tileSize)
 				for (int tx = 0; tx < screenSize.x; tx += tileSize) {
@@ -150,46 +145,49 @@ int Main::createWindow() {
 			//glDispatchCompute(glm::ceil(screenSize.x / 8), glm::ceil(screenSize.y / 8), 1);
 			//glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
 
-			// Fill the input image buffers
-			// color
-			int rgbaSize = screenSize.x * screenSize.y * 4;
-			int rgbSize = screenSize.x * screenSize.y * 3 * sizeof(float);
-			float* colorPtr = (float*)colorBuf.getData();
-			std::vector<float> rgbaCPU(rgbaSize);
-			quadTexture.Bind();
-			glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_FLOAT, rgbaCPU.data());
-			memcpy(colorPtr, rgbaTOrgb(rgbaCPU).data(), rgbSize);
+			// only denoise if rendering
+			if (Renderer::isRenderering()) {
+				// Fill the input image buffers
+				// color
+				int rgbaSize = screenSize.x * screenSize.y * 4;
+				int rgbSize = screenSize.x * screenSize.y * 3 * sizeof(float);
+				float* colorPtr = (float*)colorBuf.getData();
+				std::vector<float> rgbaCPU(rgbaSize);
+				quadTexture.Bind();
+				glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_FLOAT, rgbaCPU.data());
+				memcpy(colorPtr, rgbaTOrgb(rgbaCPU).data(), rgbSize);
 
-			// albedo
-			float* albedoPtr = (float*)albedoBuf.getData();
-			albedoTexture.Bind();
-			glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_FLOAT, rgbaCPU.data());
-			memcpy(albedoPtr, rgbaTOrgb(rgbaCPU).data(), rgbSize);
+				// albedo
+				float* albedoPtr = (float*)albedoBuf.getData();
+				albedoTexture.Bind();
+				glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_FLOAT, rgbaCPU.data());
+				memcpy(albedoPtr, rgbaTOrgb(rgbaCPU).data(), rgbSize);
 
-			// normal
-			float* normalPtr = (float*)normalBuf.getData();
-			normalTexture.Bind();
-			glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_FLOAT, rgbaCPU.data());
-			memcpy(normalPtr, rgbaTOrgb(rgbaCPU).data(), rgbSize);
+				// normal
+				float* normalPtr = (float*)normalBuf.getData();
+				normalTexture.Bind();
+				glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_FLOAT, rgbaCPU.data());
+				memcpy(normalPtr, rgbaTOrgb(rgbaCPU).data(), rgbSize);
 
-			// Filter the beauty image
-			filter.execute();
+				// Filter the beauty image
+				filter.execute();
 
-			// upload back to glTexture
-			quadTexture.Bind();
-			std::vector<float> rgba(rgbaSize);
-			for (int i = 0; i < screenSize.x * screenSize.y; i++) {
-				rgba[i*4+0] = colorPtr[i*3+0];
-				rgba[i*4+1] = colorPtr[i*3+1];
-				rgba[i*4+2] = colorPtr[i*3+2];
-				rgba[i*4+3] = 1.f;
-			}
-			glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, screenSize.x, screenSize.y, GL_RGBA, GL_FLOAT, rgba.data());
+				// upload back to glTexture
+				quadTexture.Bind();
+				std::vector<float> rgba(rgbaSize);
+				for (int i = 0; i < screenSize.x * screenSize.y; i++) {
+					rgba[i * 4 + 0] = colorPtr[i * 3 + 0];
+					rgba[i * 4 + 1] = colorPtr[i * 3 + 1];
+					rgba[i * 4 + 2] = colorPtr[i * 3 + 2];
+					rgba[i * 4 + 3] = 1.f;
+				}
+				glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, screenSize.x, screenSize.y, GL_RGBA, GL_FLOAT, rgba.data());
 
 			// Check for errors
 			const char* errorMessage;
 			if (device.getError(errorMessage) != oidn::Error::None)
 				std::cout << "Error: " << errorMessage << std::endl;
+			}
 
 			quadShader->Activate();
 			quadShader->setInt("tex", 0);
@@ -241,6 +239,12 @@ void Main::Start() {
 	camera = new Camera(screenSize.x, screenSize.y, glm::vec3(0.f, 3.5f, 14));
 
 	Scene::LoadScene(computeShader, 2);
+
+	samplesPerPixel = 100;
+	maxBounces = 10;
+	computeShader->Activate();
+	computeShader->setInt("samplesPerPixel", samplesPerPixel);
+	computeShader->setInt("maxBounces", maxBounces);
 
 	// OIDN Setup
 	device = oidn::newDevice(oidn::DeviceType::CUDA);
@@ -312,7 +316,7 @@ void Main::KeyCallback(GLFWwindow* window, int key, int scancode, int action, in
 
 	if (key == GLFW_KEY_R && action == GLFW_PRESS) { // render
 		rayTraceEnabled = true;
-		Renderer::Start(screenSize.x, screenSize.y);
+		Renderer::Start(screenSize.x, screenSize.y, samplesPerPixel, maxBounces);
 	}
 }
 

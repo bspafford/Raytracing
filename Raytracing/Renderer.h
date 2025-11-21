@@ -18,7 +18,7 @@ class Text;
 
 class Renderer {
 public:
-	static void Start(int width, int height);
+	static void Start(int width, int height, int spp, int bounces);
 	static void NextFrame(Texture tex, GLuint width, GLuint height, Camera* camera, Shader* textShader);
 
 	static bool isRenderering() { return renderering; };
@@ -29,7 +29,7 @@ private:
 
 	static inline bool renderering = false;
 	static inline int fps = 60;
-	static inline int totalFrames = 60;
+	static inline int totalFrames = 120;
 	static inline int currentFrame;
 
 	// rendering stats

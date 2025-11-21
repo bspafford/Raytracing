@@ -96,7 +96,7 @@ uniform mat4 invView;
 uniform float aspect;
 uniform float fov;
 
-uniform int raysPerPixel;
+uniform int samplesPerPixel;
 uniform int maxBounces;
 
 uniform vec2 offset;
@@ -303,13 +303,13 @@ void main() {
 	// background color
 	const vec4 ambientColor = hasSun ? vec4(0.4431372549, 0.73725490196, 1, 1) : vec4(0, 0, 0, 1);
 	vec4 color = vec4(0, 0, 0, 1);
-	const float rayStrengthCutoff = .01f / float(raysPerPixel);
-	const float initialRayStrength = 1.f / float(raysPerPixel);
+	const float rayStrengthCutoff = .01f / float(samplesPerPixel);
+	const float initialRayStrength = 1.f / float(samplesPerPixel);
 
-	float sqrtActiveRaysNum = sqrt(float(raysPerPixel));
+	float sqrtActiveRaysNum = sqrt(float(samplesPerPixel));
 	int N = int(ceil(sqrtActiveRaysNum));
 
-	for (int r = 0; r < raysPerPixel; ++r) {
+	for (int r = 0; r < samplesPerPixel; ++r) {
 		// make ray in grid pattern
 		// grid coordinates
 		ivec2 g = ivec2(r % N, r / N);

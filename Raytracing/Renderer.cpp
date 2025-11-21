@@ -4,6 +4,7 @@
 #include "shaderClass.h"
 #include "Text.h"
 #include "main.h"
+#include "Scene.h"
 
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "stb_image_write.h"
@@ -15,7 +16,7 @@
 
 #include "debugger.h"
 
-void Renderer::Start(int width, int height) {
+void Renderer::Start(int width, int height, int spp, int bounces) {
 	// disable window resizing during rendering
 	currentFrame = 0;
 	renderering = true;
@@ -26,9 +27,9 @@ void Renderer::Start(int width, int height) {
 		infoText = new Text();
 
 	// setup ffmpeg
-	const char* outputPath = "Renders/output.mp4";
+	std::string outputPath = "Renders/Scene-" + std::to_string(Scene::getCurrSceneIndex()) + "_spp-" + std::to_string(spp) + "_bounces-" + std::to_string(bounces) + ".mp4";
 	if (!formatContext) {
-		avformat_alloc_output_context2(&formatContext, nullptr, nullptr, outputPath);
+		avformat_alloc_output_context2(&formatContext, nullptr, nullptr, outputPath.c_str());
 		if (!formatContext)
 			throw std::runtime_error("Could not allocate output format context");
 	}
@@ -57,7 +58,7 @@ void Renderer::Start(int width, int height) {
 		videoStream->time_base = codecContext->time_base;
 	}
 
-	avio_open(&formatContext->pb, outputPath, AVIO_FLAG_WRITE);
+	avio_open(&formatContext->pb, outputPath.c_str(), AVIO_FLAG_WRITE);
 	avcodec_open2(codecContext, codec, nullptr);
 	avformat_write_header(formatContext, nullptr);
 
@@ -117,7 +118,6 @@ void Renderer::NextFrame(Texture tex, GLuint width, GLuint height, Camera* camer
 
 	// mp4
 	// copy OpenGL pixels to frame->data[0]
-	//memcpy(rgbFrame->data[0], bytes.data(), width * height * 4);
 	for (int y = 0; y < height; y++) {
 		int srcY = height - 1 - y;
 		memcpy(
@@ -128,7 +128,6 @@ void Renderer::NextFrame(Texture tex, GLuint width, GLuint height, Camera* camer
 	}
 
 	int64_t pts = (currentFrame) * videoStream->time_base.den / (videoStream->time_base.num * fps);
-	std::cout << "pts: " << pts << " = " << currentFrame << " * " << videoStream->time_base.den << " / (" << videoStream->time_base.num << " * " << fps << ")\n";
 	rgbFrame->pts = pts;
 	yuvFrame->pts = pts;
 
@@ -145,7 +144,6 @@ void Renderer::NextFrame(Texture tex, GLuint width, GLuint height, Camera* camer
 
 	while (avcodec_receive_packet(codecContext, pkt) == 0) {
 		pkt->stream_index = videoStream->index;
-		std::cout << "writting frame: " << pkt->pts << "\n";
 		av_interleaved_write_frame(formatContext, pkt);
 		av_packet_unref(pkt);
 	}
@@ -178,7 +176,6 @@ void Renderer::Finished() {
 	avcodec_send_frame(codecContext, nullptr); // flush
 	while (avcodec_receive_packet(codecContext, pkt) == 0) {
 		pkt->stream_index = videoStream->index;
-		std::cout << "flushing | writting frame: " << pkt->pts << "\n";
 		av_interleaved_write_frame(formatContext, pkt);
 		av_packet_unref(pkt);
 	}
@@ -189,7 +186,7 @@ void Renderer::Finished() {
 
 void Renderer::UpdateCamera(Camera* camera) {
 	float PI = 3.14159265359;
-	float x = currentFrame / 30.f - (PI / 3.f);
+	float x = currentFrame / 120.f - (PI / 6.f);
 	glm::vec3 lookAt = glm::vec3(0.f, 3.5f, 0.f);
 	camera->Position = glm::vec3(sin(x) * 15.f, 3.5f, cos(x) * 15.f);
 	camera->Orientation = glm::normalize(lookAt - camera->Position);

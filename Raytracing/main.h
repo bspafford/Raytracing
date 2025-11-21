@@ -53,6 +53,9 @@ private:
 	void setupQuad();
 	void renderQuad();
 
+	static inline int samplesPerPixel = 1;
+	static inline int maxBounces = 5;
+
 	// oidn
 	oidn::FilterRef filter;
 	oidn::DeviceRef device;
